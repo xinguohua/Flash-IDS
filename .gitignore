@@ -1,0 +1,7 @@
+data_files/
+*.json.*
+*.txt
+*.model
+*.tar.gz
+*.json
+!requirements.txt
