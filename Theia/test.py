@@ -84,7 +84,7 @@ flag = torch.tensor([True] * graph.num_nodes, dtype=torch.bool)
 
 for m_n in range(20):
     model.load_state_dict(
-        torch.load(f'trained_weights/theia/lword2vec_gnn_theia{m_n}_E3.pth', map_location=torch.device('cpu')))
+        torch.load(f'../trained_weights/theia/lword2vec_gnn_theia{m_n}_E3.pth', map_location=torch.device('cpu')))
     loader = NeighborLoader(graph, num_neighbors=[-1, -1], batch_size=5000)
     for subg in loader:
         model.eval()
