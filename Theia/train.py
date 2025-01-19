@@ -20,7 +20,9 @@ optimizer = torch.optim.Adam(model.parameters(), lr=0.01, weight_decay=5e-4)
 
 f = open("theia_train.txt")
 data = f.read().split('\n')
-data = [line.split('\t') for line in data]
+# data = [line.split('\t') for line in data]
+# for test
+data = [line.split('\t') for line in data[:50]]
 df = pd.DataFrame(data, columns=['actorID', 'actor_type', 'objectID', 'object', 'action', 'timestamp'])
 df = df.dropna()
 df.sort_values(by='timestamp', ascending=True, inplace=True)

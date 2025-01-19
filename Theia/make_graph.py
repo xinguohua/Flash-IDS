@@ -48,8 +48,9 @@ def prepare_graph(df):
 
 def add_attributes(d, p):
     f = open(p)
-    data = [json.loads(x) for x in f if "EVENT" in x]
-
+    # data = [json.loads(x) for x in f if "EVENT" in x]
+    # for test
+    data = [json.loads(x) for i, x in enumerate(f) if "EVENT" in x and i < 300]
     info = []
     for x in data:
         try:
