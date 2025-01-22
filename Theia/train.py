@@ -27,6 +27,7 @@ df = pd.DataFrame(data, columns=['actorID', 'actor_type', 'objectID', 'object', 
 df = df.dropna()
 df.sort_values(by='timestamp', ascending=True, inplace=True)
 df = add_attributes(df, "ta1-theia-e3-official-1r.json")
+# TODO: 文本保留起来, ===裁剪图
 phrases, labels, edges, mapp = prepare_graph(df)
 
 word2vec = Word2Vec(sentences=phrases, vector_size=30, window=5, min_count=1, workers=8, epochs=300,
