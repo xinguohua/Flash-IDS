@@ -15,9 +15,7 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 logger = EpochLogger()
 saver = EpochSaver()
 
-model = GCN(30, 5).to(device)
-optimizer = torch.optim.Adam(model.parameters(), lr=0.01, weight_decay=5e-4)
-
+# 加载数据
 f = open("theia_train.txt")
 data = f.read().split('\n')
 # data = [line.split('\t') for line in data]
@@ -26,27 +24,43 @@ data = [line.split('\t') for line in data[:50]]
 df = pd.DataFrame(data, columns=['actorID', 'actor_type', 'objectID', 'object', 'action', 'timestamp'])
 df = df.dropna()
 df.sort_values(by='timestamp', ascending=True, inplace=True)
+# 形成一个更完整的视图
 df = add_attributes(df, "ta1-theia-e3-official-1r.json")
+
 # TODO: 文本保留起来, ===裁剪图
+# 成图+捕捉特征
 phrases, labels, edges, mapp = prepare_graph(df)
 
+
+# TODO: 特征替换
+# 构造特征向量
 word2vec = Word2Vec(sentences=phrases, vector_size=30, window=5, min_count=1, workers=8, epochs=300,
                     callbacks=[saver, logger])
-l = np.array(labels)
-class_weights = class_weight.compute_class_weight(class_weight="balanced", classes=np.unique(l), y=l)
-class_weights = torch.tensor(class_weights, dtype=torch.float).to(device)
-criterion = CrossEntropyLoss(weight=class_weights, reduction='mean')
-
 nodes = [infer(x) for x in phrases]
 nodes = np.array(nodes)
 
+# 图神经网络输入构建
 graph = Data(x=torch.tensor(nodes, dtype=torch.float).to(device), y=torch.tensor(labels, dtype=torch.long).to(device),
              edge_index=torch.tensor(edges, dtype=torch.long).to(device))
 graph.n_id = torch.arange(graph.num_nodes)
 mask = torch.tensor([True] * graph.num_nodes, dtype=torch.bool)
 
-for m_n in range(20):
+# 损失函数
+all_classes = np.array([0, 1, 2, 3, 4, 5])
+existing_classes = np.unique(labels)
+weights = class_weight.compute_class_weight('balanced', classes=existing_classes, y=np.array(labels))
+full_weights = np.ones(len(all_classes))
+for cls, weight in zip(existing_classes, weights):
+    idx = np.where(all_classes == cls)[0]
+    full_weights[idx] = weight
+class_weights = torch.tensor(full_weights, dtype=torch.float).to(device)
+criterion = CrossEntropyLoss(weight=class_weights, reduction='mean')
 
+# TODO：匹配模型
+# 模型训练
+model = GCN(30, 6).to(device)
+optimizer = torch.optim.Adam(model.parameters(), lr=0.01, weight_decay=5e-4)
+for m_n in range(20):
     loader = NeighborLoader(graph, num_neighbors=[-1, -1], batch_size=5000, input_nodes=mask)
     total_loss = 0
     for subg in loader:
@@ -57,7 +71,11 @@ for m_n in range(20):
         loss.backward()
         optimizer.step()
         total_loss += loss.item() * subg.batch_size
-    print(total_loss / mask.sum().item())
+    mask_sum = mask.sum().item()
+    if mask_sum > 0:
+        print(total_loss / mask_sum)
+    else:
+        print("No active nodes remaining to calculate loss.")
 
     loader = NeighborLoader(graph, num_neighbors=[-1, -1], batch_size=5000, input_nodes=mask)
     for subg in loader:

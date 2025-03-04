@@ -33,7 +33,11 @@ def calculate_metrics(TP, FP, FN, TN):
 
     return prec, rec, fscore, FPR, TPR
 
-
+# MP：模型预测的阳性集合（即模型预测为正例的项）。
+# all_pids：所有可能的ID集合。
+# GP：实际阳性集合（即真实的正例项）。
+# edges：图中的边，表示元素之间的关系。
+# mapp：一个映射，可能用于将项或节点映射到图中的特定元素或位置。
 def helper(MP, all_pids, GP, edges, mapp):
     TP = MP.intersection(GP)
     FP = MP - GP

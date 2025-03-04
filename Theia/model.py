@@ -76,7 +76,7 @@ def infer(document):
     if not word_embeddings:
         return np.zeros(20)
 
-    output_embedding = torch.tensor(word_embeddings, dtype=torch.float)
+    output_embedding = torch.tensor(np.array(word_embeddings), dtype=torch.float)
     if len(document) < 100000:
         output_embedding = encoder.embed(output_embedding)
 

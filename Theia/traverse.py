@@ -1,4 +1,6 @@
 import json
+
+# TODO：裁剪 调用这里
 def traverse(ids, mapping, edges, hops, visited=None):
     if hops == 0:
         return set()
@@ -25,6 +27,7 @@ def load_data(file_path):
     with open(file_path, 'r') as file:
         return json.load(file)
 
+# TODO 推理部分改这些
 def find_connected_alerts(start_alert, mapping, edges, depth, remaining_alerts):
     connected_path = traverse({start_alert}, mapping, edges, depth)
     return connected_path.intersection(remaining_alerts)

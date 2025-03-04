@@ -140,14 +140,16 @@ def run_data_processing():
         id_nodetype_map = process_data(path)
         process_edges(path, id_nodetype_map)
 
+    # 分割训练数据集/测试数据集
     os.system('cp ta1-theia-e3-official-1r.json.txt theia_train.txt')
     os.system('cp ta1-theia-e3-official-6r.json.8.txt theia_test.txt')
 
 # =================下载数据=========================
-urls = ["https://drive.google.com/file/d/10cecNtR3VsHfV0N-gNEeoVeB89kCnse5/view?usp=drive_link",
-        "https://drive.google.com/file/d/1Kadc6CUTb4opVSDE4x6RFFnEy0P1cRp0/view?usp=drive_link"]
-for url in urls:
-    gdown.download(url, quiet=False, use_cookies=False, fuzzy=True)
+# urls = ["https://drive.google.com/file/d/10cecNtR3VsHfV0N-gNEeoVeB89kCnse5/view?usp=drive_link",
+#         "https://drive.google.com/file/d/1Kadc6CUTb4opVSDE4x6RFFnEy0P1cRp0/view?usp=drive_link"]
+# for url in urls:
+#     gdown.download(url, quiet=False, use_cookies=False, fuzzy=True)
+# =================================
 
 warnings.filterwarnings('ignore')
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
