@@ -20,6 +20,7 @@ def update_edge_index(edges, edge_index, index, relations, relations_index):
         relations_index[(src, dst)] = relation
 
 
+# 成图+捕捉特征语料+简化策略这里添加
 def prepare_graph(df):
     nodes, labels, edges, relations = {}, {}, [], {}
     dummies = {"SUBJECT_PROCESS": 0, "MemoryObject": 1, "FILE_OBJECT_BLOCK": 2,

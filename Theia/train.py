@@ -27,9 +27,10 @@ df.sort_values(by='timestamp', ascending=True, inplace=True)
 # 形成一个更完整的视图
 df = add_attributes(df, "ta1-theia-e3-official-1r.json")
 
-# TODO: 文本保留起来, ===裁剪图
-# 成图+捕捉特征语料+裁剪
+# 成图+捕捉特征语料+简化策略这里添加
 phrases, labels, edges, mapp, relations = prepare_graph(df)
+
+# 裁剪
 
 
 # TODO: 特征替换
