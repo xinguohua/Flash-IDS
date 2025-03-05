@@ -9,16 +9,19 @@ def add_node_properties(nodes, node_id, properties):
     nodes[node_id].extend(properties)
 
 
-def update_edge_index(edges, edge_index, index):
+def update_edge_index(edges, edge_index, index, relations, relations_index):
     for src_id, dst_id in edges:
         src = index[src_id]
         dst = index[dst_id]
         edge_index[0].append(src)
         edge_index[1].append(dst)
 
+        relation = relations[(src_id, dst_id)]
+        relations_index[(src, dst)] = relation
+
 
 def prepare_graph(df):
-    nodes, labels, edges = {}, {}, []
+    nodes, labels, edges, relations = {}, {}, [], {}
     dummies = {"SUBJECT_PROCESS": 0, "MemoryObject": 1, "FILE_OBJECT_BLOCK": 2,
                "NetFlowObject": 3, "PRINCIPAL_REMOTE": 4, 'PRINCIPAL_LOCAL': 5}
 
@@ -34,17 +37,19 @@ def prepare_graph(df):
         add_node_properties(nodes, object_id, properties)
         labels[object_id] = dummies[row['object']]
 
-        edges.append((actor_id, object_id))
+        edge = (actor_id, object_id)
+        edges.append(edge)
+        relations[edge] = action
 
-    features, feat_labels, edge_index, index_map = [], [], [[], []], {}
+    features, feat_labels, edge_index, index_map, relations_index = [], [], [[], []], {}, {}
     for node_id, props in nodes.items():
         features.append(props)
         feat_labels.append(labels[node_id])
         index_map[node_id] = len(features) - 1
 
-    update_edge_index(edges, edge_index, index_map)
+    update_edge_index(edges, edge_index, index_map, relations, relations_index)
 
-    return features, feat_labels, edge_index, list(index_map.keys())
+    return features, feat_labels, edge_index, list(index_map.keys()), relations_index
 
 def add_attributes(d, p):
     f = open(p)

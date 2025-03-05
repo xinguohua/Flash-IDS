@@ -73,7 +73,7 @@ with open("../data_files/theia.json", "r") as json_file:
     GT_mal = set(json.load(json_file))
 
 data = df
-phrases,labels,edges,mapp = prepare_graph(data)
+phrases,labels,edges,mapp,relations = prepare_graph(data)
 nodes = [infer(x) for x in phrases]
 nodes = np.array(nodes)
 et = time.time()
