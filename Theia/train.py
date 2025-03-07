@@ -9,7 +9,7 @@ from torch_geometric.data import Data
 from torch_geometric.loader import NeighborLoader
 from Theia.make_graph import add_attributes, prepare_graph
 from Theia.model import EpochLogger, EpochSaver, GCN, infer
-
+from Theia.partition import detect_communities
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 logger = EpochLogger()
@@ -27,11 +27,11 @@ df.sort_values(by='timestamp', ascending=True, inplace=True)
 # 形成一个更完整的视图
 df = add_attributes(df, "ta1-theia-e3-official-1r.json")
 
-# 成图+捕捉特征语料+简化策略这里添加
-phrases, labels, edges, mapp, relations = prepare_graph(df)
+# 成整个大图+捕捉特征语料+简化策略这里添加
+phrases, labels, edges, mapp, relations, G = prepare_graph(df)
 
-# 裁剪
-
+# 大图分割
+communities = detect_communities(G)
 
 # TODO: 特征替换
 # 构造特征向量

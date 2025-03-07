@@ -1,6 +1,7 @@
 import pandas as pd
 import json
-
+import igraph as ig
+from type_enum import ObjectType
 
 # =================处理特征成图=========================
 def add_node_properties(nodes, node_id, properties):
@@ -22,9 +23,10 @@ def update_edge_index(edges, edge_index, index, relations, relations_index):
 
 # 成图+捕捉特征语料+简化策略这里添加
 def prepare_graph(df):
+    G = ig.Graph(directed=True)
     nodes, labels, edges, relations = {}, {}, [], {}
-    dummies = {"SUBJECT_PROCESS": 0, "MemoryObject": 1, "FILE_OBJECT_BLOCK": 2,
-               "NetFlowObject": 3, "PRINCIPAL_REMOTE": 4, 'PRINCIPAL_LOCAL': 5}
+    # dummies = {"SUBJECT_PROCESS": 0, "MemoryObject": 1, "FILE_OBJECT_BLOCK": 2,
+    #            "NetFlowObject": 3, "PRINCIPAL_REMOTE": 4, 'PRINCIPAL_LOCAL': 5}
 
     for _, row in df.iterrows():
         action = row["action"]
@@ -32,15 +34,27 @@ def prepare_graph(df):
 
         actor_id = row["actorID"]
         add_node_properties(nodes, actor_id, properties)
-        labels[actor_id] = dummies[row['actor_type']]
+        labels[actor_id] = ObjectType[row['actor_type']].value
 
         object_id = row["objectID"]
         add_node_properties(nodes, object_id, properties)
-        labels[object_id] = dummies[row['object']]
+        labels[object_id] = ObjectType[row['object']].value
 
         edge = (actor_id, object_id)
         edges.append(edge)
         relations[edge] = action
+
+        # 初始化igraph的图
+        G.add_vertices(1)
+        G.vs[len(G.vs)-1]['name'] = actor_id
+        G.vs[len(G.vs)-1]['type'] = ObjectType[row['actor_type']].value
+        G.vs[len(G.vs)-1]['properties'] = properties
+        G.add_vertices(1)
+        G.vs[len(G.vs)-1]['name'] = object_id
+        G.vs[len(G.vs)-1]['type'] = ObjectType[row['object']].value
+        G.vs[len(G.vs)-1]['properties'] = properties
+        G.add_edges([(actor_id, object_id)])
+        G.es[len(G.es)-1]['actions'] = action
 
     features, feat_labels, edge_index, index_map, relations_index = [], [], [[], []], {}, {}
     for node_id, props in nodes.items():
@@ -50,7 +64,7 @@ def prepare_graph(df):
 
     update_edge_index(edges, edge_index, index_map, relations, relations_index)
 
-    return features, feat_labels, edge_index, list(index_map.keys()), relations_index
+    return features, feat_labels, edge_index, list(index_map.keys()), relations_index, G
 
 def add_attributes(d, p):
     f = open(p)
