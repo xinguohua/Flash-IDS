@@ -34,20 +34,25 @@ phrases, labels, edges, mapp, relations, G = prepare_graph(df)
 # 大图分割
 communities = detect_communities(G)
 
-
 # 构造特征向量
+# word2Vec
 # word2vec = Word2Vec(sentences=phrases, vector_size=30, window=5, min_count=1, workers=8, epochs=300,
 #                     callbacks=[saver, logger])
 # nodes = [infer(x) for x in phrases]
 # nodes = np.array(nodes)
-
+# TransE
+# 嵌入
+nodes = []
 triples = graph_to_triples(G)
 trained_model, triples_factory = train_embedding_model(triples)
-nodes = [v["name"] for v in G.vs]  # 遍历 iGraph 的所有节点
-node_embeddings = {node: get_feature_vector(trained_model, triples_factory, node) for node in nodes}
+nodeNames = [v["name"] for v in G.vs]  # 遍历 iGraph 的所有节点
+node_embeddings = {node: get_feature_vector(trained_model, triples_factory, node) for node in nodeNames}
 for node, embedding in node_embeddings.items():
+    nodes.append(embedding)
     print(f"Node '{node}' embedding: {embedding[:5]}")  # 只显示前 5 维
+nodes = np.array(nodes)
 
+# 匹配模型
 # 图神经网络输入构建
 graph = Data(x=torch.tensor(nodes, dtype=torch.float).to(device), y=torch.tensor(labels, dtype=torch.long).to(device),
              edge_index=torch.tensor(edges, dtype=torch.long).to(device))
@@ -65,7 +70,6 @@ for cls, weight in zip(existing_classes, weights):
 class_weights = torch.tensor(full_weights, dtype=torch.float).to(device)
 criterion = CrossEntropyLoss(weight=class_weights, reduction='mean')
 
-# TODO：匹配模型
 # 模型训练
 model = GCN(30, 6).to(device)
 optimizer = torch.optim.Adam(model.parameters(), lr=0.01, weight_decay=5e-4)
@@ -101,3 +105,5 @@ for m_n in range(20):
 
     torch.save(model.state_dict(), f'lword2vec_gnn_theia{m_n}_E3.pth')
     print(f'Model# {m_n}. {mask.sum().item()} nodes still misclassified \n')
+
+# TODO：推理

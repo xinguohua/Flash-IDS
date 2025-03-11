@@ -101,7 +101,7 @@ def train_embedding_model(triples):
         training=triples_factory,
         validation=validation,
         testing=testing,
-        model_kwargs={'embedding_dim': 5},
+        model_kwargs={'embedding_dim': 30},
         training_kwargs={'num_epochs': 100, 'batch_size': 16},
     )
 
