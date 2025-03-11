@@ -10,6 +10,7 @@ from torch_geometric.loader import NeighborLoader
 from Theia.make_graph import add_attributes, prepare_graph
 from Theia.model import EpochLogger, EpochSaver, GCN, infer
 from Theia.partition import detect_communities
+from embedding import graph_to_triples,train_embedding_model,get_feature_vector
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 logger = EpochLogger()
@@ -33,12 +34,19 @@ phrases, labels, edges, mapp, relations, G = prepare_graph(df)
 # 大图分割
 communities = detect_communities(G)
 
-# TODO: 特征替换
+
 # 构造特征向量
-word2vec = Word2Vec(sentences=phrases, vector_size=30, window=5, min_count=1, workers=8, epochs=300,
-                    callbacks=[saver, logger])
-nodes = [infer(x) for x in phrases]
-nodes = np.array(nodes)
+# word2vec = Word2Vec(sentences=phrases, vector_size=30, window=5, min_count=1, workers=8, epochs=300,
+#                     callbacks=[saver, logger])
+# nodes = [infer(x) for x in phrases]
+# nodes = np.array(nodes)
+
+triples = graph_to_triples(G)
+trained_model, triples_factory = train_embedding_model(triples)
+nodes = [v["name"] for v in G.vs]  # 遍历 iGraph 的所有节点
+node_embeddings = {node: get_feature_vector(trained_model, triples_factory, node) for node in nodes}
+for node, embedding in node_embeddings.items():
+    print(f"Node '{node}' embedding: {embedding[:5]}")  # 只显示前 5 维
 
 # 图神经网络输入构建
 graph = Data(x=torch.tensor(nodes, dtype=torch.float).to(device), y=torch.tensor(labels, dtype=torch.long).to(device),
