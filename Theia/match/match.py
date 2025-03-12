@@ -1,0 +1,303 @@
+import copy
+import torch
+import collections
+from dataset import GraphEditDistanceDataset, FixedGraphEditDistanceDataset
+from graphembeddingnetwork import GraphEncoder, GraphAggregator
+from graphmatchingnetwork import GraphMatchingNet
+import time
+from loss import pairwise_loss
+from evaluation import compute_similarity, auc
+import numpy as np
+import torch.nn as nn
+
+
+
+def build_datasets(config):
+    """Build the training and evaluation datasets."""
+    config = copy.deepcopy(config)
+
+    if config['data']['problem'] == 'graph_edit_distance':
+        dataset_params = config['data']['dataset_params']
+        validation_dataset_size = dataset_params['validation_dataset_size']
+        del dataset_params['validation_dataset_size']
+        training_set = GraphEditDistanceDataset(**dataset_params)
+        dataset_params['dataset_size'] = validation_dataset_size
+        validation_set = FixedGraphEditDistanceDataset(**dataset_params)
+    else:
+        raise ValueError('Unknown problem type: %s' % config['data']['problem'])
+    return training_set, validation_set
+
+
+def get_default_config():
+    """The default configs."""
+    model_type = 'matching'
+    # Set to `embedding` to use the graph embedding net.
+    node_state_dim = 32
+    edge_state_dim = 16
+    graph_rep_dim = 128
+    graph_embedding_net_config = dict(
+        node_state_dim=node_state_dim,
+        edge_state_dim=edge_state_dim,
+        edge_hidden_sizes=[node_state_dim * 2, node_state_dim * 2],
+        node_hidden_sizes=[node_state_dim * 2],
+        n_prop_layers=5,
+        # set to False to not share parameters across message passing layers
+        share_prop_params=True,
+        # initialize message MLP with small parameter weights to prevent
+        # aggregated message vectors blowing up, alternatively we could also use
+        # e.g. layer normalization to keep the scale of these under control.
+        edge_net_init_scale=0.1,
+        # other types of update like `mlp` and `residual` can also be used here. gru
+        node_update_type='gru',
+        # set to False if your graph already contains edges in both directions.
+        use_reverse_direction=True,
+        # set to True if your graph is directed
+        reverse_dir_param_different=False,
+        # we didn't use layer norm in our experiments but sometimes this can help.
+        layer_norm=False,
+        # set to `embedding` to use the graph embedding net.
+        prop_type=model_type)
+    graph_matching_net_config = graph_embedding_net_config.copy()
+    graph_matching_net_config['similarity'] = 'dotproduct'  # other: euclidean, cosine
+    return dict(
+        encoder=dict(
+            node_hidden_sizes=[node_state_dim],
+            node_feature_dim=1,
+            edge_hidden_sizes=[edge_state_dim]),
+        aggregator=dict(
+            node_hidden_sizes=[graph_rep_dim],
+            graph_transform_sizes=[graph_rep_dim],
+            input_size=[node_state_dim],
+            gated=True,
+            aggregation_type='sum'),
+        graph_embedding_net=graph_embedding_net_config,
+        graph_matching_net=graph_matching_net_config,
+        model_type=model_type,
+        data=dict(
+            problem='graph_edit_distance',
+            dataset_params=dict(
+                # always generate graphs with 20 nodes and p_edge=0.2.
+                n_nodes_range=[20, 20],
+                p_edge_range=[0.2, 0.2],
+                n_changes_positive=1,
+                n_changes_negative=2,
+                validation_dataset_size=1000)),
+        training=dict(
+            batch_size=20,
+            learning_rate=1e-4,
+            mode='pair',
+            loss='margin',  # other: hamming
+            margin=1.0,
+            # A small regularizer on the graph vector scales to avoid the graph
+            # vectors blowing up.  If numerical issues is particularly bad in the
+            # model we can add `snt.LayerNorm` to the outputs of each layer, the
+            # aggregated messages and aggregated node representations to
+            # keep the network activation scale in a reasonable range.
+            graph_vec_regularizer_weight=1e-6,
+            # Add gradient clipping to avoid large gradients.
+            clip_value=10.0,
+            # Increase this to train longer.
+            n_training_steps=500000,
+            # Print training information every this many training steps.
+            print_after=100,
+            # Evaluate on validation set every `eval_after * print_after` steps.
+            eval_after=10),
+        evaluation=dict(
+            batch_size=20),
+        seed=8,
+    )
+
+def build_model(config, node_feature_dim, edge_feature_dim):
+    """Create model for training and evaluation.
+
+    Args:
+      config: a dictionary of configs, like the one created by the
+        `get_default_config` function.
+      node_feature_dim: int, dimensionality of node features.
+      edge_feature_dim: int, dimensionality of edge features.
+
+    Returns:
+      tensors: a (potentially nested) name => tensor dict.
+      placeholders: a (potentially nested) name => tensor dict.
+      AE_model: a GraphEmbeddingNet or GraphMatchingNet instance.
+
+    Raises:
+      ValueError: if the specified model or training settings are not supported.
+    """
+    config['encoder']['node_feature_dim'] = node_feature_dim
+    config['encoder']['edge_feature_dim'] = edge_feature_dim
+
+    encoder = GraphEncoder(**config['encoder'])
+    aggregator = GraphAggregator(**config['aggregator'])
+    if config['model_type'] == 'matching':
+        model = GraphMatchingNet(
+            encoder, aggregator, **config['graph_matching_net'])
+    else:
+        raise ValueError('Unknown model type: %s' % config['model_type'])
+
+    optimizer = torch.optim.Adam((model.parameters()),
+                                 lr=config['training']['learning_rate'], weight_decay=1e-5)
+
+    return model, optimizer
+
+def get_graph(batch):
+    if len(batch) != 2:
+        # if isinstance(batch, GraphData):
+        graph = batch
+        node_features = torch.from_numpy(graph.node_features)
+        edge_features = torch.from_numpy(graph.edge_features)
+        from_idx = torch.from_numpy(graph.from_idx).long()
+        to_idx = torch.from_numpy(graph.to_idx).long()
+        graph_idx = torch.from_numpy(graph.graph_idx).long()
+        return node_features, edge_features, from_idx, to_idx, graph_idx
+    else:
+        graph, labels = batch
+        node_features = torch.from_numpy(graph.node_features)
+        edge_features = torch.from_numpy(graph.edge_features)
+        from_idx = torch.from_numpy(graph.from_idx).long()
+        to_idx = torch.from_numpy(graph.to_idx).long()
+        graph_idx = torch.from_numpy(graph.graph_idx).long()
+        labels = torch.from_numpy(labels).long()
+    return node_features, edge_features, from_idx, to_idx, graph_idx, labels
+
+def reshape_and_split_tensor(tensor, n_splits):
+    """Reshape and split a 2D tensor along the last dimension.
+
+    Args:
+      tensor: a [num_examples, feature_dim] tensor.  num_examples must be a
+        multiple of `n_splits`.
+      n_splits: int, number of splits to split the tensor into.
+
+    Returns:
+      splits: a list of `n_splits` tensors.  The first split is [tensor[0],
+        tensor[n_splits], tensor[n_splits * 2], ...], the second split is
+        [tensor[1], tensor[n_splits + 1], tensor[n_splits * 2 + 1], ...], etc..
+    """
+    feature_dim = tensor.shape[-1]
+    tensor = torch.reshape(tensor, [-1, feature_dim * n_splits])
+    tensor_split = []
+    for i in range(n_splits):
+        tensor_split.append(tensor[:, feature_dim * i: feature_dim * (i + 1)])
+    return tensor_split
+
+
+use_cuda = torch.cuda.is_available()
+device = torch.device('cuda:0' if use_cuda else 'cpu')
+
+# 加载数据
+config = get_default_config()
+training_set, validation_set = build_datasets(config)
+training_data_iter = training_set.pairs(config['training']['batch_size'])
+first_batch_graphs, _ = next(training_data_iter)
+
+# 初始化模型
+node_feature_dim = first_batch_graphs.node_features.shape[-1]
+edge_feature_dim = first_batch_graphs.edge_features.shape[-1]
+model, optimizer = build_model(config, node_feature_dim, edge_feature_dim)
+model.to(device)
+
+# 创建存储训练过程的指标
+accumulated_metrics = collections.defaultdict(list)
+# 计算每个 batch 里的图数量
+training_n_graphs_in_batch = config['training']['batch_size']
+if config['training']['mode'] == 'pair':
+    training_n_graphs_in_batch *= 2
+else:
+    raise ValueError('Unknown training mode: %s' % config['training']['mode'])
+
+# 训练循环
+t_start = time.time()
+for i_iter in range(config['training']['n_training_steps']):
+    model.train(mode=True)
+    # 解析 batch 数据
+    batch = next(training_data_iter)
+    node_features, edge_features, from_idx, to_idx, graph_idx, labels = get_graph(batch)
+    labels = labels.to(device)
+
+    #  前向传播
+    graph_vectors = model(node_features.to(device), edge_features.to(device), from_idx.to(device), to_idx.to(device),
+                          graph_idx.to(device), training_n_graphs_in_batch)
+    #  计算损失
+    if config['training']['mode'] == 'pair':
+        x, y = reshape_and_split_tensor(graph_vectors, 2)
+        loss = pairwise_loss(x, y, labels,
+                             loss_type=config['training']['loss'],
+                             margin=config['training']['margin'])
+
+        is_pos = (labels == torch.ones(labels.shape).long().to(device)).float()
+        is_neg = 1 - is_pos
+        n_pos = torch.sum(is_pos)
+        n_neg = torch.sum(is_neg)
+        sim = compute_similarity(config, x, y)
+        sim_pos = torch.sum(sim * is_pos) / (n_pos + 1e-8)
+        sim_neg = torch.sum(sim * is_neg) / (n_neg + 1e-8)
+
+    graph_vec_scale = torch.mean(graph_vectors ** 2)
+    if config['training']['graph_vec_regularizer_weight'] > 0:
+        loss = loss.add(config['training']['graph_vec_regularizer_weight'] *
+                0.5 * graph_vec_scale)
+
+    # 反向传播 & 更新参数
+    optimizer.zero_grad()
+    loss.backward(torch.ones_like(loss))  #
+    nn.utils.clip_grad_value_(model.parameters(), config['training']['clip_value'])
+    optimizer.step()
+
+    sim_diff = sim_pos - sim_neg
+    accumulated_metrics['loss'].append(loss)
+    accumulated_metrics['sim_pos'].append(sim_pos)
+    accumulated_metrics['sim_neg'].append(sim_neg)
+    accumulated_metrics['sim_diff'].append(sim_diff)
+
+
+    # evaluation
+    if (i_iter + 1) % config['training']['print_after'] == 0:
+        # 打印训练参数
+        metrics_to_print = {
+            k: torch.mean(v[0]) for k, v in accumulated_metrics.items()}
+        info_str = ', '.join(
+            ['%s %.4f' % (k, v) for k, v in metrics_to_print.items()])
+        # reset the metrics
+        accumulated_metrics = collections.defaultdict(list)
+
+        # 计算AUC / Triplet Accuracy
+        # 评估
+        if ((i_iter + 1) // config['training']['print_after'] %
+                config['training']['eval_after'] == 0):
+            model.eval()
+            with torch.no_grad():
+                accumulated_pair_auc = []
+                for batch in validation_set.pairs(config['evaluation']['batch_size']):
+                    node_features, edge_features, from_idx, to_idx, graph_idx, labels = get_graph(batch)
+                    labels = labels.to(device)
+                    eval_pairs = model(node_features.to(device), edge_features.to(device), from_idx.to(device),
+                                       to_idx.to(device),
+                                       graph_idx.to(device), config['evaluation']['batch_size'] * 2)
+
+                    x, y = reshape_and_split_tensor(eval_pairs, 2)
+                    similarity = compute_similarity(config, x, y)
+                    pair_auc = auc(similarity, labels)
+                    accumulated_pair_auc.append(pair_auc)
+
+                accumulated_triplet_acc = []
+                for batch in validation_set.triplets(config['evaluation']['batch_size']):
+                    node_features, edge_features, from_idx, to_idx, graph_idx = get_graph(batch)
+                    eval_triplets = model(node_features.to(device), edge_features.to(device), from_idx.to(device),
+                                          to_idx.to(device),
+                                          graph_idx.to(device),
+                                          config['evaluation']['batch_size'] * 4)
+                    x_1, y, x_2, z = reshape_and_split_tensor(eval_triplets, 4)
+                    sim_1 = compute_similarity(config, x_1, y)
+                    sim_2 = compute_similarity(config, x_2, z)
+                    triplet_acc = torch.mean((sim_1 > sim_2).float())
+                    accumulated_triplet_acc.append(triplet_acc.cpu().numpy())
+
+                eval_metrics = {
+                    'pair_auc': np.mean(accumulated_pair_auc),
+                    'triplet_acc': np.mean(accumulated_triplet_acc)}
+                info_str += ', ' + ', '.join(
+                    ['%s %.4f' % ('val/' + k, v) for k, v in eval_metrics.items()])
+            model.train()
+        print('iter %d, %s, time %.2fs' % (
+            i_iter + 1, info_str, time.time() - t_start))
+        t_start = time.time()
