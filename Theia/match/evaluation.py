@@ -1,5 +1,5 @@
 from sklearn import metrics
-from loss import *
+from Theia.match.loss import *
 
 
 def exact_hamming_similarity(x, y):

@@ -1,5 +1,5 @@
-from graphembeddingnetwork import GraphEmbeddingNet
-from graphembeddingnetwork import GraphPropLayer
+from Theia.match.graphembeddingnetwork import GraphEmbeddingNet
+from Theia.match.graphembeddingnetwork import GraphPropLayer
 import torch
 
 

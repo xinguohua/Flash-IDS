@@ -8,6 +8,7 @@ from torch.nn import CrossEntropyLoss
 from torch_geometric.data import Data
 from torch_geometric.loader import NeighborLoader
 from Theia.make_graph import add_attributes, prepare_graph
+from Theia.match.match import train_model
 from Theia.model import EpochLogger, EpochSaver, GCN, infer
 from Theia.partition import detect_communities
 from embedding import graph_to_triples,train_embedding_model,get_feature_vector
@@ -34,14 +35,13 @@ phrases, labels, edges, mapp, relations, G = prepare_graph(df)
 # 大图分割
 communities = detect_communities(G)
 
-# 构造特征向量
+# 嵌入构造特征向量
 # word2Vec
 # word2vec = Word2Vec(sentences=phrases, vector_size=30, window=5, min_count=1, workers=8, epochs=300,
 #                     callbacks=[saver, logger])
 # nodes = [infer(x) for x in phrases]
 # nodes = np.array(nodes)
 # TransE
-# 嵌入
 nodes = []
 triples = graph_to_triples(G)
 trained_model, triples_factory = train_embedding_model(triples)
@@ -71,39 +71,42 @@ class_weights = torch.tensor(full_weights, dtype=torch.float).to(device)
 criterion = CrossEntropyLoss(weight=class_weights, reduction='mean')
 
 # 模型训练
-model = GCN(30, 6).to(device)
-optimizer = torch.optim.Adam(model.parameters(), lr=0.01, weight_decay=5e-4)
-for m_n in range(20):
-    loader = NeighborLoader(graph, num_neighbors=[-1, -1], batch_size=5000, input_nodes=mask)
-    total_loss = 0
-    for subg in loader:
-        model.train()
-        optimizer.zero_grad()
-        out = model(subg.x, subg.edge_index)
-        loss = criterion(out, subg.y)
-        loss.backward()
-        optimizer.step()
-        total_loss += loss.item() * subg.batch_size
-    mask_sum = mask.sum().item()
-    if mask_sum > 0:
-        print(total_loss / mask_sum)
-    else:
-        print("No active nodes remaining to calculate loss.")
-
-    loader = NeighborLoader(graph, num_neighbors=[-1, -1], batch_size=5000, input_nodes=mask)
-    for subg in loader:
-        model.eval()
-        out = model(subg.x, subg.edge_index)
-
-        sorted, indices = out.sort(dim=1, descending=True)
-        conf = (sorted[:, 0] - sorted[:, 1]) / sorted[:, 0]
-        conf = (conf - conf.min()) / conf.max()
-
-        pred = indices[:, 0]
-        cond = (pred == subg.y) | (conf >= 0.9)
-        mask[subg.n_id[cond]] = False
-
-    torch.save(model.state_dict(), f'lword2vec_gnn_theia{m_n}_E3.pth')
-    print(f'Model# {m_n}. {mask.sum().item()} nodes still misclassified \n')
+# 匹配
+train_model(G, communities)
+# 节点分类
+# model = GCN(30, 6).to(device)
+# optimizer = torch.optim.Adam(model.parameters(), lr=0.01, weight_decay=5e-4)
+# for m_n in range(20):
+#     loader = NeighborLoader(graph, num_neighbors=[-1, -1], batch_size=5000, input_nodes=mask)
+#     total_loss = 0
+#     for subg in loader:
+#         model.train()
+#         optimizer.zero_grad()
+#         out = model(subg.x, subg.edge_index)
+#         loss = criterion(out, subg.y)
+#         loss.backward()
+#         optimizer.step()
+#         total_loss += loss.item() * subg.batch_size
+#     mask_sum = mask.sum().item()
+#     if mask_sum > 0:
+#         print(total_loss / mask_sum)
+#     else:
+#         print("No active nodes remaining to calculate loss.")
+#
+#     loader = NeighborLoader(graph, num_neighbors=[-1, -1], batch_size=5000, input_nodes=mask)
+#     for subg in loader:
+#         model.eval()
+#         out = model(subg.x, subg.edge_index)
+#
+#         sorted, indices = out.sort(dim=1, descending=True)
+#         conf = (sorted[:, 0] - sorted[:, 1]) / sorted[:, 0]
+#         conf = (conf - conf.min()) / conf.max()
+#
+#         pred = indices[:, 0]
+#         cond = (pred == subg.y) | (conf >= 0.9)
+#         mask[subg.n_id[cond]] = False
+#
+#     torch.save(model.state_dict(), f'lword2vec_gnn_theia{m_n}_E3.pth')
+#     print(f'Model# {m_n}. {mask.sum().item()} nodes still misclassified \n')
 
 # TODO：推理

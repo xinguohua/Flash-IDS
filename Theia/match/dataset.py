@@ -15,23 +15,8 @@ class GraphSimilarityDataset(object):
   This class defines some common interfaces a graph similarity dataset can have,
   in particular the functions that creates iterators over pairs and triplets.
   """
-
     @abc.abstractmethod
-    def triplets(self, batch_size):
-        """Create an iterator over triplets.
-    Args:
-      batch_size: int, number of triplets in a batch.
-    Yields:
-      graphs: a `GraphData` instance.  The batch of triplets put together.  Each
-        triplet has 3 graphs (x, y, z).  Here the first graph is duplicated once
-        so the graphs for each triplet are ordered as (x, y, x, z) in the batch.
-        The batch contains `batch_size` number of triplets, hence `4*batch_size`
-        many graphs.
-    """
-        pass
-
-    @abc.abstractmethod
-    def pairs(self, batch_size):
+    def pairs(self, batch_size, communities, G):
         """Create an iterator over pairs.
     Args:
       batch_size: int, number of pairs in a batch.
@@ -91,6 +76,41 @@ def substitute_random_edges(g, n):
     return g
 
 
+def substitute_random_edges_ig(G, n):
+    """在 igraph.Graph (有向图) 中随机替换 `n` 条边"""
+    G = G.copy()  # 复制图，避免修改原始图
+    n_nodes = G.vcount()  # 获取节点数
+    edges = G.get_edgelist()  # 获取所有边的列表
+
+    # 如果图的节点数小于 2，无法替换边，直接返回原图
+    if n_nodes < 2:
+        print(f"[警告] 图的节点数不足 ({n_nodes})，无法替换边，直接返回原图。")
+        return G
+
+    # 如果要替换的边比图中的边还多，直接返回
+    if len(edges) < n:
+        print(f"[警告] 需要替换 {n} 条边，但图中只有 {len(edges)} 条边，直接返回原图。")
+        return G
+
+    # 1、**随机选择 `n` 条边进行删除**
+    e_remove_idx = np.random.choice(len(edges), n, replace=False)  # 选 `n` 条边索引
+    e_remove = [edges[i] for i in e_remove_idx]  # 获取要删除的边
+    edge_set = set(edges)  # 转换为集合，方便查重
+
+    # 2、**随机生成 `n` 条新边**
+    e_add = set()
+    while len(e_add) < n:
+        e = tuple(np.random.choice(n_nodes, 2, replace=False))  # 生成 (src, dst)
+        if e not in edge_set and e not in e_add:  # 确保新边不重复
+            e_add.add(e)
+
+    # 3、**执行删除和添加**
+    G.delete_edges(e_remove)  # 删除选定的 `n` 条边
+    G.add_edges(list(e_add))  # 添加 `n` 条新边
+
+    return G  # 返回修改后的图
+
+
 class GraphEditDistanceDataset(GraphSimilarityDataset):
     """Graph edit distance dataset."""
 
@@ -122,59 +142,41 @@ class GraphEditDistanceDataset(GraphSimilarityDataset):
         self._k_neg = n_changes_negative
         self._permute = permute
 
-    def _get_graph(self):
-        """Generate one graph."""
-        n_nodes = np.random.randint(self._n_min, self._n_max + 1)
-        p_edge = np.random.uniform(self._p_min, self._p_max)
+    def _get_pair(self, positive, communities, G):
+        """Generate one pair of graphs from a given community structure.
 
-        # do a little bit of filtering
-        n_trials = 100
-        for _ in range(n_trials):
-            g = nx.erdos_renyi_graph(n_nodes, p_edge)
-            if nx.is_connected(g):
-                return g
+        Args:
+            positive (bool): 是否是正样本
+            communities (dict): {社区ID: [节点列表]}
+            G (igraph.Graph): 原始的完整图
 
-        raise ValueError("Failed to generate a connected graph.")
+        Returns:
+            permuted_g (igraph.Graph): 经过节点重排的社区子图
+            changed_g (igraph.Graph): 经过边修改的社区子图
+        """
+        # 从 `communities` 里随机选一个社区**
+        community_id = np.random.choice(list(communities.keys()))
+        community_nodes = communities[community_id]  # 该社区的节点列表
 
-    def _get_pair(self, positive):
-        """Generate one pair of graphs."""
-        g = self._get_graph()
-        if self._permute:
-            permuted_g = permute_graph_nodes(g)
-        else:
-            permuted_g = g
+        # **从原图 `G` 提取该社区的子图**
+        g = G.subgraph(community_nodes)
+
+        # **根据 `positive` 选择边的修改数量**
         n_changes = self._k_pos if positive else self._k_neg
-        changed_g = substitute_random_edges(g, n_changes)
-        return permuted_g, changed_g
 
-    def _get_triplet(self):
-        """Generate one triplet of graphs."""
-        g = self._get_graph()
-        if self._permute:
-            permuted_g = permute_graph_nodes(g)
-        else:
-            permuted_g = g
-        pos_g = substitute_random_edges(g, self._k_pos)
-        neg_g = substitute_random_edges(g, self._k_neg)
-        return permuted_g, pos_g, neg_g
+        # **对子图 `g` 进行边修改**
+        changed_g = substitute_random_edges_ig(g, n_changes)
 
-    def triplets(self, batch_size):
-        """Yields batches of triplet data."""
-        while True:
-            batch_graphs = []
-            for _ in range(batch_size):
-                g1, g2, g3 = self._get_triplet()
-                batch_graphs.append((g1, g2, g1, g3))
-            yield self._pack_batch(batch_graphs)
+        return g, changed_g
 
-    def pairs(self, batch_size):
+    def _pairs(self, batch_size, communities, G):
         """Yields batches of pair data."""
         while True:
             batch_graphs = []
             batch_labels = []
             positive = True
             for _ in range(batch_size):
-                g1, g2 = self._get_pair(positive)
+                g1, g2 = self._get_pair(positive, communities, G)
                 batch_graphs.append((g1, g2))
                 batch_labels.append(1 if positive else -1)
                 positive = not positive
@@ -203,9 +205,18 @@ class GraphEditDistanceDataset(GraphSimilarityDataset):
         n_total_nodes = 0
         n_total_edges = 0
         for i, g in enumerate(graphs):
-            n_nodes = g.number_of_nodes()
-            n_edges = g.number_of_edges()
-            edges = np.array(g.edges(), dtype=np.int32)
+            n_nodes = g.vcount()
+            n_edges = g.ecount()
+            # **检查是否为空图**
+            if n_nodes == 0:
+                print(f"[警告] 图 {i} 没有节点，跳过！")
+                continue
+
+            if n_edges == 0:
+                print(f"[警告] 图 {i} 没有边，跳过！")
+                continue
+
+            edges = np.array(g.get_edgelist(), dtype=np.int32)
             # shift the node indices for the edges
             from_idx.append(edges[:, 0] + n_total_nodes)
             to_idx.append(edges[:, 1] + n_total_nodes)
@@ -275,27 +286,7 @@ class FixedGraphEditDistanceDataset(GraphEditDistanceDataset):
         self._dataset_size = dataset_size
         self._seed = seed
 
-    def triplets(self, batch_size):
-        """Yield triplets."""
-
-        if hasattr(self, "_triplets"):
-            triplets = self._triplets
-        else:
-            # get a fixed set of triplets
-            with reset_random_state(self._seed):
-                triplets = []
-                for _ in range(self._dataset_size):
-                    g1, g2, g3 = self._get_triplet()
-                    triplets.append((g1, g2, g1, g3))
-            self._triplets = triplets
-
-        ptr = 0
-        while ptr + batch_size <= len(triplets):
-            batch_graphs = triplets[ptr: ptr + batch_size]
-            yield self._pack_batch(batch_graphs)
-            ptr += batch_size
-
-    def pairs(self, batch_size):
+    def pairs(self, batch_size, communities, G):
         """Yield pairs and labels."""
 
         if hasattr(self, "_pairs") and hasattr(self, "_labels"):
@@ -308,7 +299,7 @@ class FixedGraphEditDistanceDataset(GraphEditDistanceDataset):
                 labels = []
                 positive = True
                 for _ in range(self._dataset_size):
-                    pairs.append(self._get_pair(positive))
+                    pairs.append(self._get_pair(positive, communities, G))
                     labels.append(1 if positive else -1)
                     positive = not positive
             labels = np.array(labels, dtype=np.int32)
