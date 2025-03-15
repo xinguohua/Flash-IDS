@@ -529,15 +529,58 @@ class GraphEmbeddingNet(nn.Module):
                     layer = self._prop_layers[0]
                 self._prop_layers.append(layer)
 
-    def forward(self,
+    # def forward(self,
+    #             node_features,
+    #             edge_features,
+    #             from_idx,
+    #             to_idx,
+    #             graph_idx,
+    #             n_graphs):
+    #     """Compute graph representations.
+    #
+    #     Args:
+    #       node_features: [n_nodes, node_feat_dim] float tensor.
+    #       edge_features: [n_edges, edge_feat_dim] float tensor.
+    #       from_idx: [n_edges] int tensor, index of the from node for each edge.
+    #       to_idx: [n_edges] int tensor, index of the to node for each edge.
+    #       graph_idx: [n_nodes] int tensor, graph id for each node.
+    #       n_graphs: int, number of graphs in the batch.
+    #
+    #     Returns:
+    #       graph_representations: [n_graphs, graph_representation_dim] float tensor,
+    #         graph representations.
+    #     """
+    #
+    #     node_features, edge_features = self._encoder(node_features, edge_features)
+    #     node_states = node_features
+    #
+    #     layer_outputs = [node_states]
+    #
+    #     for layer in self._prop_layers:
+    #         # node_features could be wired in here as well, leaving it out for now as
+    #         # it is already in the inputs
+    #         node_states = self._apply_layer(
+    #             layer,
+    #             node_states,
+    #             from_idx,
+    #             to_idx,
+    #             graph_idx,
+    #             n_graphs,
+    #             edge_features)
+    #         layer_outputs.append(node_states)
+    #
+    #     # these tensors may be used e.g. for visualization
+    #     self._layer_outputs = layer_outputs
+    #     return self._aggregator(node_states, graph_idx, n_graphs)
+
+    def forward(self, x, edge_index, batch = None, graph_idx = None, edge_features = None, n_graphs = None):
+        """Compute graph representations.
                 node_features,
                 edge_features,
                 from_idx,
                 to_idx,
                 graph_idx,
-                n_graphs):
-        """Compute graph representations.
-
+                n_graphs
         Args:
           node_features: [n_nodes, node_feat_dim] float tensor.
           edge_features: [n_edges, edge_feat_dim] float tensor.
@@ -550,7 +593,9 @@ class GraphEmbeddingNet(nn.Module):
           graph_representations: [n_graphs, graph_representation_dim] float tensor,
             graph representations.
         """
-
+        node_features = x
+        from_idx =edge_index[0]
+        to_idx=edge_index[1]
         node_features, edge_features = self._encoder(node_features, edge_features)
         node_states = node_features
 
@@ -572,6 +617,7 @@ class GraphEmbeddingNet(nn.Module):
         # these tensors may be used e.g. for visualization
         self._layer_outputs = layer_outputs
         return self._aggregator(node_states, graph_idx, n_graphs)
+
 
     def reset_n_prop_layers(self, n_prop_layers):
         """Set n_prop_layers to the provided new value.

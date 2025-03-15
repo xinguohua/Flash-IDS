@@ -12,8 +12,9 @@ from Theia.match.match import train_model
 from Theia.model import EpochLogger, EpochSaver, GCN, infer
 from Theia.partition import detect_communities
 from embedding import graph_to_triples,train_embedding_model,get_feature_vector
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
+
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 logger = EpochLogger()
 saver = EpochSaver()
 
@@ -108,5 +109,9 @@ train_model(G, communities)
 #
 #     torch.save(model.state_dict(), f'lword2vec_gnn_theia{m_n}_E3.pth')
 #     print(f'Model# {m_n}. {mask.sum().item()} nodes still misclassified \n')
+
+
+
+
 
 # TODO：推理

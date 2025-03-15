@@ -1,16 +1,18 @@
-import copy
-import torch
 import collections
+import copy
+import time
+
+import numpy as np
+import torch
+import torch.nn as nn
+from torch_geometric.data import Data
+from torch_geometric.nn import GNNExplainer
+
 from Theia.match.dataset import GraphEditDistanceDataset, FixedGraphEditDistanceDataset
+from Theia.match.evaluation import compute_similarity, auc
 from Theia.match.graphembeddingnetwork import GraphEncoder, GraphAggregator
 from Theia.match.graphmatchingnetwork import GraphMatchingNet
-import time
 from Theia.match.loss import pairwise_loss
-from Theia.match.evaluation import compute_similarity, auc
-import numpy as np
-import torch.nn as nn
-import igraph as ig
-
 
 
 def build_datasets(config):
@@ -98,7 +100,7 @@ def get_default_config():
             clip_value=10.0,
             # Increase this to train longer.
             # n_training_steps=500000,
-            n_training_steps=500,
+            n_training_steps=50,
             # Print training information every this many training steps.
             # print_after=100,
             print_after=10,
@@ -328,9 +330,18 @@ def train_model(G, communities):
         labels = labels.to(device)
 
         #  前向传播
-        graph_vectors = model(node_features.to(device), edge_features.to(device), from_idx.to(device),
-                              to_idx.to(device),
-                              graph_idx.to(device), training_n_graphs_in_batch)
+        # graph_vectors = model(node_features.to(device), edge_features.to(device), from_idx.to(device),
+        #                       to_idx.to(device),
+        #                       graph_idx.to(device), training_n_graphs_in_batch)
+        edge_index = torch.stack([from_idx, to_idx], dim=0).to(device)
+        graph_vectors = model(
+            node_features.to(device),
+            edge_index,
+            None,
+            graph_idx.to(device),
+            edge_features=edge_features.to(device),
+            n_graphs = training_n_graphs_in_batch
+        )
         #  计算损失
         x, y = reshape_and_split_tensor(graph_vectors, 2)
         loss = pairwise_loss(x, y, labels,
@@ -382,10 +393,18 @@ def train_model(G, communities):
                     for batch in validation_set.pairs(config['evaluation']['batch_size'], communities, G):
                         node_features, edge_features, from_idx, to_idx, graph_idx, labels = get_graph(batch)
                         labels = labels.to(device)
-                        eval_pairs = model(node_features.to(device), edge_features.to(device), from_idx.to(device),
-                                           to_idx.to(device),
-                                           graph_idx.to(device), config['evaluation']['batch_size'] * 2)
-
+                        # eval_pairs = model(node_features.to(device), edge_features.to(device), from_idx.to(device),
+                        #                    to_idx.to(device),
+                        #                    graph_idx.to(device), config['evaluation']['batch_size'] * 2)
+                        edge_index = torch.stack([from_idx, to_idx], dim=0).to(device)
+                        eval_pairs = model(
+                            x=node_features.to(device),
+                            edge_index=edge_index.to(device),
+                            batch = None,
+                            graph_idx=graph_idx.to(device),
+                            edge_features=edge_features.to(device),
+                            n_graphs=config['evaluation']['batch_size'] * 2  # 传递 n_graphs
+                        )
                         x, y = reshape_and_split_tensor(eval_pairs, 2)
                         similarity = compute_similarity(config, x, y)
                         pair_auc = auc(similarity, labels)
@@ -399,6 +418,33 @@ def train_model(G, communities):
             print('iter %d, %s, time %.2fs' % (
                 i_iter + 1, info_str, time.time() - t_start))
             t_start = time.time()
+    print("训练结束")
+
+    # 训练完成后，锁定关键节点 解释整个图
+
+    explainer = GNNExplainer(model, epochs=200)
+    for batch in validation_set.pairs(config['evaluation']['batch_size'], communities, G):
+        node_features, edge_features, from_idx, to_idx, graph_idx, labels = get_graph(batch)
+        labels = labels.to(device)
+        edge_index = torch.stack([from_idx, to_idx], dim=0).to(device)
+        # **使用 GNNExplainer 解释*
+        # , graph_idx = graph_idx, n_graphs = config['evaluation']['batch_size'] * 2
+        model.train()
+        # print(f"Model training mode: {model.training}")
+        # for name, module in model.named_modules():
+        #     print(f"{name}: {module.training}")
+        # print(f"cudnn.enabled: {torch.backends.cudnn.enabled}")
+        # print(f"cudnn.benchmark: {torch.backends.cudnn.benchmark}")
+        # print(f"cudnn.deterministic: {torch.backends.cudnn.deterministic}")
+        with torch.backends.cudnn.flags(enabled=False):
+            graph_feat_mask, graph_edge_mask = explainer.explain_graph(node_features.to(device),
+                                                                       edge_index.to(device),
+                                                                       graph_idx = graph_idx.to(device),
+                                                                       edge_features=edge_features.to(device),
+                                                                       n_graphs=config['evaluation']['batch_size'] * 2)
+        print(" 整个图的特征重要性:", graph_feat_mask)
+        print(" 整个图的边重要性:", graph_edge_mask)
+
 
 
 # G = ig.Graph(directed=True)
