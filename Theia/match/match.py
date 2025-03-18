@@ -187,7 +187,30 @@ def reshape_and_split_tensor(tensor, n_splits):
     return tensor_split
 
 
+def find_important_nodes_and_edges(graph_edge_mask, edge_index):
+    """计算最重要的节点和边"""
 
+    # **计算节点的重要性（累加与该节点相连的边的分数）**
+    num_nodes = edge_index.max().item() + 1  # 计算最大节点索引，确定节点数量
+    node_importance = torch.zeros(num_nodes)
+    for idx, importance in enumerate(graph_edge_mask.cpu().detach().numpy()):
+        src, dst = edge_index[:, idx]  # 获取边的两个端点
+        node_importance[src] += importance  # 源节点
+        node_importance[dst] += importance  # 目标节点
+
+    # **按重要性排序**
+    sorted_nodes = sorted(enumerate(node_importance.numpy()), key=lambda x: x[1], reverse=True)
+    sorted_edges = sorted(enumerate(graph_edge_mask.cpu().detach().numpy()), key=lambda x: x[1], reverse=True)
+
+    # **打印最重要的前 5 个节点**
+    print(" 最重要的节点（前 5）：")
+    for idx, importance in sorted_nodes[:5]:
+        print(f"节点 {idx} → 重要性: {importance:.4f}")
+
+    # **打印最重要的前 5 条边**
+    print(" 最重要的边（前 5）：")
+    for idx, importance in sorted_edges[:5]:
+        print(f"边 {edge_index[:, idx].tolist()} → 重要性: {importance:.4f}")
 
 # use_cuda = torch.cuda.is_available()
 # device = torch.device('cuda:0' if use_cuda else 'cpu')
@@ -444,6 +467,7 @@ def train_model(G, communities):
                                                                        n_graphs=config['evaluation']['batch_size'] * 2)
         print(" 整个图的特征重要性:", graph_feat_mask)
         print(" 整个图的边重要性:", graph_edge_mask)
+        find_important_nodes_and_edges(graph_edge_mask, edge_index)
 
 
 
