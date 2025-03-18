@@ -1,5 +1,8 @@
 import json
 from openai import OpenAI
+import igraph as ig
+from collections import deque
+import random
 
 # client = OpenAI(
 #     # defaults to os.environ.get("OPENAI_API_KEY")
@@ -15,9 +18,24 @@ from openai import OpenAI
 #
 # print(response.choices[0].message.content)
 
-import igraph as ig
-from collections import deque
-import random
+def call_llm(template):
+    """
+    通用大模型调用封装：
+    - 输入：template（prompt字符串）
+    - 输出：LLM完整返回的文本内容
+    """
+    client = OpenAI(
+        api_key="sk-xhUZwtWJmekrtdX2hLvnC6nnuNSfe6qNIidWbzRIQBoZCEMa",
+        base_url="https://api.chatanywhere.tech/v1"
+    )
+
+    response = client.chat.completions.create(
+        model="gpt-4",
+        messages=[{"role": "user", "content": template}]
+    )
+
+    answer = response.choices[0].message.content.strip()
+    return answer
 
 def bfs_igraph_multi_start(graph, start_vertices, select_k=2):
     """
@@ -82,8 +100,6 @@ def llm_select_neighbors(current_node, candidate_neighbors, current_path):
     :param current_path: 当前已经走的路径
     :return: 选择的邻居列表
     """
-    print(f"【LLM模拟】当前节点: {current_node}, 当前路径: {current_path}, 候选邻居: {candidate_neighbors}")
-
     select_k = 2
     selected = random.sample(candidate_neighbors, min(select_k, len(candidate_neighbors)))
     return selected
@@ -96,19 +112,24 @@ def llm_should_stop(final_paths):
     - 如果完整路径数量达到3条，则停止
     - 或者路径中出现关键节点 J，也停止
     """
-    print(f"🧠【LLM模拟】当前完整路径集合：{final_paths}")
+    template = (
+        "以下是当前完整路径集合：['A->B->F->J', 'A->C->G']。\n"
+        "请判断：是否应该停止遍历？\n"
+        "规则：如果路径数量超过3条 或 路径中包含关键节点 'J'，则建议停止。\n"
+        "请直接回答：是 或 否。"
+    )
 
+    response = call_llm(template)
+    print("🧠 大模型回复：", response)
     # 规则1：生成了3条完整路径，LLM决定够了
     if len(final_paths) >= 3:
-        print("🧠【LLM模拟】路径数量达到3，停止！")
+        print(f"【LLM模拟】当前完整路径集合：{final_paths} 路径数量达到3，停止！")
         return True
-
     # 规则2：只要有路径包含 'J'，LLM立刻决定停
     for path in final_paths:
         if 'J' in path:
-            print("🧠【LLM模拟】命中关键节点J，停止！")
+            print("【LLM模拟】当前完整路径集合：{final_paths} 命中关键节点J，停止！")
             return True
-
     return False
 
 # 创建无向图
