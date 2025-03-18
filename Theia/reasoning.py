@@ -56,9 +56,14 @@ def bfs_igraph_multi_start(graph, start_vertices, select_k=2):
         if not neighbors:
             # 叶子节点，记录完整路径
             final_paths.append("->".join(paths[node]))
+            # TODO：LLM选择
+            if llm_should_stop(final_paths):
+                print("LLM判定停止，BFS退出")
+                break
         else:
             # 随机选择 K 个邻居扩展
-            selected_neighbors = random.sample(neighbors, min(select_k, len(neighbors)))  # TODO 调 LLM 选择
+            # ✅ TODO: LLM 控制选择策略（示例：LLM 让你选或筛选 neighbor）随机选择 K 个邻居扩展
+            selected_neighbors = llm_select_neighbors(node, neighbors, paths[node])
             print(f"node {node} 随机选择 {select_k} 个邻居，选择前 {neighbors}，选择后 {selected_neighbors}")
             for neighbor in selected_neighbors:
                 visited.add(neighbor)
@@ -67,6 +72,44 @@ def bfs_igraph_multi_start(graph, start_vertices, select_k=2):
 
     print(f"\n最终完整路径集合: {final_paths}")
     return final_paths
+
+
+def llm_select_neighbors(current_node, candidate_neighbors, current_path):
+    """
+    模拟 LLM 决策：从候选邻居中选择要走的节点
+    :param current_node: 当前节点
+    :param candidate_neighbors: 邻居列表
+    :param current_path: 当前已经走的路径
+    :return: 选择的邻居列表
+    """
+    print(f"【LLM模拟】当前节点: {current_node}, 当前路径: {current_path}, 候选邻居: {candidate_neighbors}")
+
+    select_k = 2
+    selected = random.sample(candidate_neighbors, min(select_k, len(candidate_neighbors)))
+    return selected
+
+
+def llm_should_stop(final_paths):
+    """
+    模拟 LLM 判断：根据当前完整路径集合，决定是否停止BFS
+    规则：
+    - 如果完整路径数量达到3条，则停止
+    - 或者路径中出现关键节点 J，也停止
+    """
+    print(f"🧠【LLM模拟】当前完整路径集合：{final_paths}")
+
+    # 规则1：生成了3条完整路径，LLM决定够了
+    if len(final_paths) >= 3:
+        print("🧠【LLM模拟】路径数量达到3，停止！")
+        return True
+
+    # 规则2：只要有路径包含 'J'，LLM立刻决定停
+    for path in final_paths:
+        if 'J' in path:
+            print("🧠【LLM模拟】命中关键节点J，停止！")
+            return True
+
+    return False
 
 # 创建无向图
 # g = ig.Graph(directed=False)
