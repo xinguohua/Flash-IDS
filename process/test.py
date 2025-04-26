@@ -4,8 +4,8 @@ from torch_geometric import utils
 import pandas as pd
 import json
 import numpy as np
-from theia.model import infer, GCN
-from theia.make_graph import add_attributes, prepare_graph
+from process.model import infer, GCN
+from process.make_graph import add_attributes, prepare_graph
 from torch_geometric.data import Data
 from torch_geometric.loader import NeighborLoader
 
@@ -67,7 +67,7 @@ data = [line.split('\t') for line in data]
 df = pd.DataFrame (data, columns = ['actorID', 'actor_type','objectID','object','action','timestamp'])
 df = df.dropna()
 df.sort_values(by='timestamp', ascending=True,inplace=True)
-df = add_attributes(df,"ta1-theia-e3-official-6r.json.8")
+df = add_attributes(df,"ta1-process-e3-official-6r.json.8")
 
 with open("../data_files/theia.json", "r") as json_file:
     GT_mal = set(json.load(json_file))
@@ -88,7 +88,7 @@ flag = torch.tensor([True] * graph.num_nodes, dtype=torch.bool)
 
 for m_n in range(20):
     model.load_state_dict(
-        torch.load(f'../trained_weights/theia/lword2vec_gnn_theia{m_n}_E3.pth', map_location=torch.device('cpu')))
+        torch.load(f'../trained_weights/process/lword2vec_gnn_theia{m_n}_E3.pth', map_location=torch.device('cpu')))
     loader = NeighborLoader(graph, num_neighbors=[-1, -1], batch_size=5000)
     for subg in loader:
         model.eval()

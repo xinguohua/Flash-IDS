@@ -70,7 +70,7 @@ def visualize(h, color):
 
 def infer(document):
     encoder = PositionalEncoder(30)
-    w2vmodel = Word2Vec.load("../trained_weights/theia/word2vec_theia_E3.model")
+    w2vmodel = Word2Vec.load("../trained_weights/process/word2vec_theia_E3.model")
     word_embeddings = [w2vmodel.wv[word] for word in document if word in w2vmodel.wv]
 
     if not word_embeddings:

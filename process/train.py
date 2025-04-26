@@ -7,10 +7,10 @@ from sklearn.utils import class_weight
 from torch.nn import CrossEntropyLoss
 from torch_geometric.data import Data
 from torch_geometric.loader import NeighborLoader
-from theia.make_graph import add_attributes, prepare_graph
-from theia.match.match import train_model
-from theia.model import EpochLogger, EpochSaver, GCN, infer
-from theia.partition import detect_communities
+from process.make_graph import add_attributes, prepare_graph
+from process.match.match import train_model
+from process.model import EpochLogger, EpochSaver, GCN, infer
+from process.partition import detect_communities
 from embedding import graph_to_triples,train_embedding_model,get_feature_vector
 
 
@@ -28,7 +28,7 @@ df = pd.DataFrame(data, columns=['actorID', 'actor_type', 'objectID', 'object', 
 df = df.dropna()
 df.sort_values(by='timestamp', ascending=True, inplace=True)
 # 形成一个更完整的视图
-df = add_attributes(df, "ta1-theia-e3-official-1r.json")
+df = add_attributes(df, "ta1-process-e3-official-1r.json")
 
 # 成整个大图+捕捉特征语料+简化策略这里添加
 phrases, labels, edges, mapp, relations, G = prepare_graph(df)
