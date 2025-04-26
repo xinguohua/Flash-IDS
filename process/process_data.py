@@ -3,7 +3,6 @@ import re
 import warnings
 import torch
 
-
 def extract_uuid(line):
     pattern_uuid = re.compile(r'uuid\":\"(.*?)\"')
     return pattern_uuid.findall(line)
@@ -65,6 +64,9 @@ def process_data(file_path):
                 continue
 
             if 'com.bbn.tc.schema.avro.cdm18.UnitDependency' in line or 'com.bbn.tc.schema.avro.cdm18.EndMarker' in line:
+                continue
+
+            if 'com.bbn.tc.schema.avro.cdm18.ProvenanceTagNode' in line:
                 continue
 
             uuid = extract_uuid(line)[0]
