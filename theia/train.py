@@ -7,10 +7,10 @@ from sklearn.utils import class_weight
 from torch.nn import CrossEntropyLoss
 from torch_geometric.data import Data
 from torch_geometric.loader import NeighborLoader
-from Theia.make_graph import add_attributes, prepare_graph
-from Theia.match.match import train_model
-from Theia.model import EpochLogger, EpochSaver, GCN, infer
-from Theia.partition import detect_communities
+from theia.make_graph import add_attributes, prepare_graph
+from theia.match.match import train_model
+from theia.model import EpochLogger, EpochSaver, GCN, infer
+from theia.partition import detect_communities
 from embedding import graph_to_triples,train_embedding_model,get_feature_vector
 
 

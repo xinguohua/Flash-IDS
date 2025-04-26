@@ -1,6 +1,6 @@
 import torch
 import torch.nn as nn
-from Theia.match.segment import unsorted_segment_sum
+from theia.match.segment import unsorted_segment_sum
 
 
 class GraphEncoder(nn.Module):
@@ -115,7 +115,7 @@ def graph_prop_once(node_states,
     edge_inputs = torch.cat(edge_inputs, dim=-1)
     messages = message_net(edge_inputs)
 
-    from Theia.match.segment import unsorted_segment_sum
+    from theia.match.segment import unsorted_segment_sum
     tensor = unsorted_segment_sum(messages, to_idx, node_states.shape[0])
     return tensor
 

@@ -4,8 +4,8 @@ from torch_geometric import utils
 import pandas as pd
 import json
 import numpy as np
-from Theia.model import infer, GCN
-from Theia.make_graph import add_attributes, prepare_graph
+from theia.model import infer, GCN
+from theia.make_graph import add_attributes, prepare_graph
 from torch_geometric.data import Data
 from torch_geometric.loader import NeighborLoader
 

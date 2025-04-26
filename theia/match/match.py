@@ -8,11 +8,11 @@ import torch.nn as nn
 from torch_geometric.data import Data
 from torch_geometric.nn import GNNExplainer
 
-from Theia.match.dataset import GraphEditDistanceDataset, FixedGraphEditDistanceDataset
-from Theia.match.evaluation import compute_similarity, auc
-from Theia.match.graphembeddingnetwork import GraphEncoder, GraphAggregator
-from Theia.match.graphmatchingnetwork import GraphMatchingNet
-from Theia.match.loss import pairwise_loss
+from theia.match.dataset import GraphEditDistanceDataset, FixedGraphEditDistanceDataset
+from theia.match.evaluation import compute_similarity, auc
+from theia.match.graphembeddingnetwork import GraphEncoder, GraphAggregator
+from theia.match.graphmatchingnetwork import GraphMatchingNet
+from theia.match.loss import pairwise_loss
 
 
 def build_datasets(config):
