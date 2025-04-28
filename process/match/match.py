@@ -444,7 +444,6 @@ def train_model(G, communities):
     print("训练结束")
 
     # 训练完成后，锁定关键节点 解释整个图
-
     explainer = GNNExplainer(model, epochs=200)
     for batch in validation_set.pairs(config['evaluation']['batch_size'], communities, G):
         node_features, edge_features, from_idx, to_idx, graph_idx, labels = get_graph(batch)

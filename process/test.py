@@ -67,7 +67,7 @@ data = [line.split('\t') for line in data]
 df = pd.DataFrame (data, columns = ['actorID', 'actor_type','objectID','object','action','timestamp'])
 df = df.dropna()
 df.sort_values(by='timestamp', ascending=True,inplace=True)
-df = add_attributes(df,"ta1-process-e3-official-6r.json.8")
+# df = add_attributes(df,"ta1-process-e3-official-6r.json.8")
 
 with open("../data_files/theia.json", "r") as json_file:
     GT_mal = set(json.load(json_file))

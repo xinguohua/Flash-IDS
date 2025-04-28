@@ -118,3 +118,64 @@ def add_attributes(d, p):
 
     return d.merge(rdf, how='inner', on=['actorID', 'objectID', 'action', 'timestamp']).drop_duplicates()
 
+
+def add_attributes_new(d, paths):
+    info = []
+    for p in paths:
+        with open(p) as f:
+            # for test: 只取每个文件前300条包含"EVENT"的
+            data = [json.loads(x) for i, x in enumerate(f) if "EVENT" in x and i < 1000]
+            # data = [json.loads(x) for i, x in enumerate(f) if "EVENT" in x ]
+
+
+        for x in data:
+            try:
+                action = x['datum']['com.bbn.tc.schema.avro.cdm18.Event']['type']
+            except:
+                action = ''
+            try:
+                actor = x['datum']['com.bbn.tc.schema.avro.cdm18.Event']['subject']['com.bbn.tc.schema.avro.cdm18.UUID']
+            except:
+                actor = ''
+            try:
+                obj = x['datum']['com.bbn.tc.schema.avro.cdm18.Event']['predicateObject'][
+                    'com.bbn.tc.schema.avro.cdm18.UUID']
+            except:
+                obj = ''
+            try:
+                timestamp = x['datum']['com.bbn.tc.schema.avro.cdm18.Event']['timestampNanos']
+            except:
+                timestamp = ''
+            try:
+                cmd = x['datum']['com.bbn.tc.schema.avro.cdm18.Event']['properties']['map']['cmdLine']
+            except:
+                cmd = ''
+            try:
+                path = x['datum']['com.bbn.tc.schema.avro.cdm18.Event']['predicateObjectPath']['string']
+            except:
+                path = ''
+            try:
+                path2 = x['datum']['com.bbn.tc.schema.avro.cdm18.Event']['predicateObject2Path']['string']
+            except:
+                path2 = ''
+            try:
+                obj2 = x['datum']['com.bbn.tc.schema.avro.cdm18.Event']['predicateObject2'][
+                    'com.bbn.tc.schema.avro.cdm18.UUID']
+                info.append({
+                    'actorID': actor, 'objectID': obj2, 'action': action, 'timestamp': timestamp,
+                    'exec': cmd, 'path': path2
+                })
+            except:
+                pass
+
+            info.append({
+                'actorID': actor, 'objectID': obj, 'action': action, 'timestamp': timestamp,
+                'exec': cmd, 'path': path
+            })
+
+    rdf = pd.DataFrame.from_records(info).astype(str)
+    d = d.astype(str)
+
+    return d.merge(rdf, how='inner', on=['actorID', 'objectID', 'action', 'timestamp']).drop_duplicates()
+
+

@@ -63,7 +63,7 @@ import igraph as ig
 # ).detach().cpu().numpy()
 # print(f"Relation 'creates' embedding: {relation_embedding}")
 
-def graph_to_triples(G):
+def graph_to_triples(G, features, mapp):
     """
     将 iGraph 图转换为 (头实体, 关系, 尾实体) 三元组
     :param G: ig.Graph 实例
@@ -77,15 +77,72 @@ def graph_to_triples(G):
         relation = edge['actions'] if 'actions' in edge.attributes() else "undefined_relation"  # 关系属性
 
         # 获取实体的 name（如果有）
-        head = G.vs[head_id]['name']
-        tail = G.vs[tail_id]['name']
-
+        head = str(features[mapp.index(G.vs[head_id]['name'])])
+        tail = str(features[mapp.index(G.vs[tail_id]['name'])])
         triples.append((head, relation, tail))
 
     return np.array(triples, dtype=object)
 
+# def custom_split(triples_factory, train_ratio=0.8, valid_ratio=0.1, test_ratio=0.1):
+#     # 计算每个子集的大小
+#     total_triples = len(triples_factory)
+#     train_size = int(total_triples * train_ratio)
+#     valid_size = int(total_triples * valid_ratio)
+#     test_size = total_triples - train_size - valid_size
+#
+#     # 获取所有的 triples
+#     all_triples = list(triples_factory)
+#
+#     # 统计所有的实体和关系
+#     all_entities = set()
+#     all_relations = set()
+#     for triple in all_triples:
+#         subject, predicate, object_ = triple
+#         all_entities.add(subject)
+#         all_entities.add(object_)
+#         all_relations.add(predicate)
+#
+#     # 用来追踪训练集、验证集和测试集的实体和关系
+#     entities_in_train = set()
+#     relations_in_train = set()
+#
+#     # 初始化训练集、验证集和测试集
+#     train_triples = []
+#     valid_triples = []
+#     test_triples = []
+#
+#     # 先将训练集填满，确保包含所有实体和关系
+#     for triple in all_triples:
+#         subject, predicate, object_ = triple
+#
+#         # 确保每个实体和关系都在训练集中
+#         if subject not in entities_in_train or object_ not in entities_in_train or predicate not in relations_in_train:
+#             train_triples.append(triple)
+#             entities_in_train.add(subject)
+#             entities_in_train.add(object_)
+#             relations_in_train.add(predicate)
+#
+#         # 如果训练集已经包含了所有实体和关系，停止填充训练集
+#         if len(train_triples) >= train_size and len(entities_in_train) == len(all_entities) and len(
+#                 relations_in_train) == len(all_relations):
+#             break
+#
+#     # 确保训练集填满
+#     remaining_triples = [triple for triple in all_triples if triple not in train_triples]
+#
+#     # 分配剩余的 triples 给验证集和测试集
+#     for triple in remaining_triples:
+#         if len(valid_triples) < valid_size:
+#             valid_triples.append(triple)
+#         elif len(test_triples) < test_size:
+#             test_triples.append(triple)
+#
+#     # 返回手动分配的训练集、验证集和测试集
+#     return TriplesFactory.from_labeled_triples(train_triples), \
+#         TriplesFactory.from_labeled_triples(valid_triples), \
+#         TriplesFactory.from_labeled_triples(test_triples)
 
-# ** 1、训练知识图谱嵌入模型**
+# 训练知识图谱嵌入模型
 def train_embedding_model(triples):
     """
     训练 TransE 知识图谱嵌入模型
@@ -108,7 +165,7 @@ def train_embedding_model(triples):
     return result.model, triples_factory
 
 
-# **2、获取实体/关系的特征向量**
+# 2、获取实体/关系的特征向量
 def get_feature_vector(model, triples_factory, name):
     """
     获取特定实体或关系的嵌入向量
@@ -117,7 +174,7 @@ def get_feature_vector(model, triples_factory, name):
     :param name: 实体或关系名称
     :return: 嵌入向量
     """
-    # **检查实体**
+    # 检查实体
     if name in triples_factory.entity_to_id:
         entity_id = triples_factory.entity_to_id[name]
         entity_tensor = torch.tensor([entity_id], dtype=torch.long)

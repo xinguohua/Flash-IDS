@@ -6,8 +6,7 @@ base_path = "../data_files/trace"
 base_path = "../data_files/cadets"
 base_path = "../data_files/clearscope"
 ```
-
-
-
-2、生成图对 分割训练集测试集
-3、图匹配比较、训练
+2、train.py
+分割训练集，编码，准备图数据
+3、match.pu
+图匹配比较、训练

@@ -154,17 +154,17 @@ class GraphEditDistanceDataset(GraphSimilarityDataset):
             permuted_g (igraph.Graph): 经过节点重排的社区子图
             changed_g (igraph.Graph): 经过边修改的社区子图
         """
-        # 从 `communities` 里随机选一个社区**
+        # 从 `communities` 里随机选一个社区
         community_id = np.random.choice(list(communities.keys()))
         community_nodes = communities[community_id]  # 该社区的节点列表
 
-        # **从原图 `G` 提取该社区的子图**
+        # 从原图 `G` 提取该社区的子图
         g = G.subgraph(community_nodes)
 
-        # **根据 `positive` 选择边的修改数量**
+        # 根据 `positive` 选择边的修改数量
         n_changes = self._k_pos if positive else self._k_neg
 
-        # **对子图 `g` 进行边修改**
+        # 对子图 `g` 进行边修改
         changed_g = substitute_random_edges_ig(g, n_changes)
 
         return g, changed_g
@@ -182,6 +182,10 @@ class GraphEditDistanceDataset(GraphSimilarityDataset):
                 positive = not positive
 
             packed_graphs = self._pack_batch(batch_graphs)
+            if packed_graphs is None:
+                # 如果这次采样失败，继续下一轮
+                print("[警告] 本次采样生成了空batch，跳过...")
+                continue
             labels = np.array(batch_labels, dtype=np.int32)
             yield packed_graphs, labels
 
@@ -207,7 +211,7 @@ class GraphEditDistanceDataset(GraphSimilarityDataset):
         for i, g in enumerate(graphs):
             n_nodes = g.vcount()
             n_edges = g.ecount()
-            # **检查是否为空图**
+            # 检查是否为空图
             if n_nodes == 0:
                 print(f"[警告] 图 {i} 没有节点，跳过！")
                 continue
@@ -232,6 +236,9 @@ class GraphEditDistanceDataset(GraphSimilarityDataset):
             'edge_features',
             'graph_idx',
             'n_graphs'])
+
+        if not from_idx:
+            return None
 
         return GraphData(
             from_idx=np.concatenate(from_idx, axis=0),
@@ -311,5 +318,10 @@ class FixedGraphEditDistanceDataset(GraphEditDistanceDataset):
         while ptr + batch_size <= len(pairs):
             batch_graphs = pairs[ptr: ptr + batch_size]
             packed_batch = self._pack_batch(batch_graphs)
+            if packed_batch is None:
+                # 如果这次采样失败，继续下一轮
+                print("[警告] 本次采样生成了空batch，跳过...")
+                ptr += batch_size
+                continue
             yield packed_batch, labels[ptr: ptr + batch_size]
             ptr += batch_size
