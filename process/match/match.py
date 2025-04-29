@@ -325,6 +325,7 @@ def train_model(G, communities, node_embeddings, edge_embeddings):
     config = get_default_config()
     training_set, validation_set = build_datasets(config)
 
+    # TODO 生成pair目前肯定是不好
     training_data_iter = training_set._pairs(config['training']['batch_size'], communities, G, node_embeddings, edge_embeddings)
     first_batch_graphs, _ = next(training_data_iter)
 
@@ -445,7 +446,7 @@ def train_model(G, communities, node_embeddings, edge_embeddings):
 
     # 训练完成后，锁定关键节点 解释整个图
     explainer = GNNExplainer(model, epochs=200)
-    for batch in validation_set.pairs(config['evaluation']['batch_size'], communities, G, node_embeddings):
+    for batch in validation_set.pairs(config['evaluation']['batch_size'], communities, G, node_embeddings, edge_embeddings):
         node_features, edge_features, from_idx, to_idx, graph_idx, labels = get_graph(batch)
         labels = labels.to(device)
         edge_index = torch.stack([from_idx, to_idx], dim=0).to(device)

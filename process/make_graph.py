@@ -20,7 +20,7 @@ def update_edge_index(edges, edge_index, index, relations, relations_index):
         relation = relations[(src_id, dst_id)]
         relations_index[(src, dst)] = relation
 
-
+# TODO：特征要补充啊
 # 成图+捕捉特征语料+简化策略这里添加
 def prepare_graph(df):
     G = ig.Graph(directed=True)
@@ -65,6 +65,47 @@ def prepare_graph(df):
     update_edge_index(edges, edge_index, index_map, relations, relations_index)
 
     return features, feat_labels, edge_index, list(index_map.keys()), relations_index, G
+
+# TODO：特征要补充啊
+# 成图+捕捉特征语料+简化策略这里添加
+def prepare_graph_new(df):
+    G = ig.Graph(directed=True)
+    nodes, edges, relations = {}, [], {}
+
+    for _, row in df.iterrows():
+        action = row["action"]
+        properties = [row['exec'], action] + ([row['path']] if row['path'] else [])
+
+        actor_id = row["actorID"]
+        add_node_properties(nodes, actor_id, properties)
+
+        object_id = row["objectID"]
+        add_node_properties(nodes, object_id, properties)
+
+        edge = (actor_id, object_id)
+        edges.append(edge)
+        relations[edge] = action
+
+        # 初始化igraph的图
+        G.add_vertices(1)
+        G.vs[len(G.vs) - 1]['name'] = actor_id
+        G.vs[len(G.vs) - 1]['type'] = ObjectType[row['actor_type']].value
+        G.vs[len(G.vs) - 1]['properties'] = properties
+        G.add_vertices(1)
+        G.vs[len(G.vs) - 1]['name'] = object_id
+        G.vs[len(G.vs) - 1]['type'] = ObjectType[row['object']].value
+        G.vs[len(G.vs) - 1]['properties'] = properties
+        G.add_edges([(actor_id, object_id)])
+        G.es[len(G.es) - 1]['actions'] = action
+
+    features, feat_labels, edge_index, index_map, relations_index = [], [], [[], []], {}, {}
+    for node_id, props in nodes.items():
+        features.append(props)
+        index_map[node_id] = len(features) - 1
+
+    update_edge_index(edges, edge_index, index_map, relations, relations_index)
+
+    return features, edge_index, list(index_map.keys()), relations_index, G
 
 def add_attributes(d, p):
     f = open(p)
@@ -127,7 +168,6 @@ def add_attributes_new(d, paths):
             # for test: 只取每个文件前300条包含"EVENT"的
             data = [json.loads(x) for i, x in enumerate(f) if "EVENT" in x and i < 1000]
             # data = [json.loads(x) for i, x in enumerate(f) if "EVENT" in x ]
-
 
         for x in data:
             try:

@@ -8,7 +8,7 @@ from sklearn.utils import class_weight
 from torch.nn import CrossEntropyLoss
 from torch_geometric.data import Data
 from torch_geometric.loader import NeighborLoader
-from process.make_graph import add_attributes, prepare_graph, add_attributes_new
+from process.make_graph import add_attributes, prepare_graph, prepare_graph_new, add_attributes_new
 from process.match.match import train_model
 from process.model import EpochLogger, EpochSaver, GCN, infer
 from process.partition import detect_communities
@@ -59,6 +59,7 @@ for scene, category_data in json_map.items():
         df = pd.DataFrame(data, columns=['actorID', 'actor_type', 'objectID', 'object', 'action', 'timestamp'])
         df = df.dropna()
         df.sort_values(by='timestamp', ascending=True, inplace=True)
+        # TODO 特征构建更完整
         # 形成一个更完整的视图
         df = add_attributes_new(df, json_files)
 
@@ -71,8 +72,9 @@ for scene, category_data in json_map.items():
 benign_df = pd.concat(all_dfs, ignore_index=True)
 benign_df = benign_df.drop_duplicates()
 # 成整个大图+捕捉特征语料+简化策略这里添加
-features, labels, edges, mapp, relations, G = prepare_graph(benign_df)
+features, edges, mapp, relations, G = prepare_graph_new(benign_df)
 
+# TODO 分割得检查下
 # 大图分割
 communities = detect_communities(G)
 
@@ -82,7 +84,6 @@ communities = detect_communities(G)
 #                     callbacks=[saver, logger])
 # nodes = [infer(x) for x in phrases]
 # nodes = np.array(nodes)
-# TODO：移到features上
 # TransE
 triples = graph_to_triples(G, features, mapp)
 trained_model, triples_factory = train_embedding_model(triples)
@@ -101,7 +102,6 @@ for relation in edge_list:
     embedding = get_feature_vector(trained_model, triples_factory, relation)
     edge_embeddings[relation] = embedding
     print(f"Relation '{relation}' embedding: {embedding[:5]}")  # 打印前5维
-
 
 # 模型训练
 # 匹配
