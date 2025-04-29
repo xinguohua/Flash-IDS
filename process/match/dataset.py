@@ -92,19 +92,19 @@ def substitute_random_edges_ig(G, n):
         print(f"[警告] 需要替换 {n} 条边，但图中只有 {len(edges)} 条边，直接返回原图。")
         return G
 
-    # 1、**随机选择 `n` 条边进行删除**
+    # 1、随机选择 `n` 条边进行删除
     e_remove_idx = np.random.choice(len(edges), n, replace=False)  # 选 `n` 条边索引
     e_remove = [edges[i] for i in e_remove_idx]  # 获取要删除的边
     edge_set = set(edges)  # 转换为集合，方便查重
 
-    # 2、**随机生成 `n` 条新边**
+    # 2、随机生成 `n` 条新边
     e_add = set()
     while len(e_add) < n:
         e = tuple(np.random.choice(n_nodes, 2, replace=False))  # 生成 (src, dst)
         if e not in edge_set and e not in e_add:  # 确保新边不重复
             e_add.add(e)
 
-    # 3、**执行删除和添加**
+    # 3、执行删除和添加
     G.delete_edges(e_remove)  # 删除选定的 `n` 条边
     G.add_edges(list(e_add))  # 添加 `n` 条新边
 
