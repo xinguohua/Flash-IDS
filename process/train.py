@@ -74,7 +74,7 @@ benign_df = benign_df.drop_duplicates()
 # 成整个大图+捕捉特征语料+简化策略这里添加
 features, edges, mapp, relations, G = prepare_graph_new(benign_df)
 
-# TODO 分割得检查下 为什么孤立的点得验证下
+# TODO 分割得检查下 为什么孤立的点得验证下 Community 0
 # 大图分割
 communities = detect_communities(G)
 
