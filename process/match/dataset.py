@@ -16,7 +16,7 @@ class GraphSimilarityDataset(object):
   in particular the functions that creates iterators over pairs and triplets.
   """
     @abc.abstractmethod
-    def pairs(self, batch_size, communities, G):
+    def pairs(self, batch_size, communities, G, node_embeddings, edge_embeddings):
         """Create an iterator over pairs.
     Args:
       batch_size: int, number of pairs in a batch.
@@ -169,7 +169,7 @@ class GraphEditDistanceDataset(GraphSimilarityDataset):
 
         return g, changed_g
 
-    def _pairs(self, batch_size, communities, G):
+    def _pairs(self, batch_size, communities, G, node_embeddings, edge_embeddings):
         """Yields batches of pair data."""
         while True:
             batch_graphs = []
@@ -181,7 +181,7 @@ class GraphEditDistanceDataset(GraphSimilarityDataset):
                 batch_labels.append(1 if positive else -1)
                 positive = not positive
 
-            packed_graphs = self._pack_batch(batch_graphs)
+            packed_graphs = self._pack_batch(batch_graphs, node_embeddings, edge_embeddings)
             if packed_graphs is None:
                 # 如果这次采样失败，继续下一轮
                 print("[警告] 本次采样生成了空batch，跳过...")
@@ -189,7 +189,7 @@ class GraphEditDistanceDataset(GraphSimilarityDataset):
             labels = np.array(batch_labels, dtype=np.int32)
             yield packed_graphs, labels
 
-    def _pack_batch(self, graphs):
+    def _pack_batch(self, graphs, node_embeddings, edge_embeddings):
         """Pack a batch of graphs into a single `GraphData` instance.
     Args:
       graphs: a list of generated networkx graphs.
@@ -205,6 +205,8 @@ class GraphEditDistanceDataset(GraphSimilarityDataset):
         from_idx = []
         to_idx = []
         graph_idx = []
+        node_names = []
+        edge_relations = []
 
         n_total_nodes = 0
         n_total_edges = 0
@@ -225,9 +227,15 @@ class GraphEditDistanceDataset(GraphSimilarityDataset):
             from_idx.append(edges[:, 0] + n_total_nodes)
             to_idx.append(edges[:, 1] + n_total_nodes)
             graph_idx.append(np.ones(n_nodes, dtype=np.int32) * i)
+            node_names.extend([g.vs[j]['name'] for j in range(n_nodes)])
+            edge_relations.extend([
+                g.es[k]['actions'] if 'actions' in g.es[k].attributes() else "undefined_relation"
+                for k in range(n_edges)
+            ])
 
             n_total_nodes += n_nodes
             n_total_edges += n_edges
+
 
         GraphData = collections.namedtuple('GraphData', [
             'from_idx',
@@ -240,14 +248,31 @@ class GraphEditDistanceDataset(GraphSimilarityDataset):
         if not from_idx:
             return None
 
+        # 使用计算好的节点特征 `node_embeddings`
+        node_features = np.array(
+            [node_embeddings[name] for name in node_names],
+            dtype=np.float32
+        )
+        edge_feature_list = []
+        for name in edge_relations:
+            if name in edge_embeddings:
+                edge_feature_list.append(edge_embeddings[name])
+            else:
+                # 填一个正确维度的全1向量
+                edge_feature_list.append(np.ones(30, dtype=np.float32))
+        edge_features = np.array(edge_feature_list, dtype=np.float32)
+
+        # TODO：替换特征
         return GraphData(
             from_idx=np.concatenate(from_idx, axis=0),
             to_idx=np.concatenate(to_idx, axis=0),
             # this task only cares about the structures, the graphs have no features.
             # setting higher dimension of ones to confirm code functioning
             # with high dimensional features.
-            node_features=np.ones((n_total_nodes, 8), dtype=np.float32),
-            edge_features=np.ones((n_total_edges, 4), dtype=np.float32),
+            # node_features=np.ones((n_total_nodes, 8), dtype=np.float32),
+            node_features=node_features,
+            # edge_features=np.ones((n_total_edges, 4), dtype=np.float32),
+            edge_features=edge_features,
             graph_idx=np.concatenate(graph_idx, axis=0),
             n_graphs=len(graphs),
         )
@@ -293,7 +318,7 @@ class FixedGraphEditDistanceDataset(GraphEditDistanceDataset):
         self._dataset_size = dataset_size
         self._seed = seed
 
-    def pairs(self, batch_size, communities, G):
+    def pairs(self, batch_size, communities, G, node_embeddings, edge_embeddings):
         """Yield pairs and labels."""
 
         if hasattr(self, "_pairs") and hasattr(self, "_labels"):
@@ -317,7 +342,7 @@ class FixedGraphEditDistanceDataset(GraphEditDistanceDataset):
         ptr = 0
         while ptr + batch_size <= len(pairs):
             batch_graphs = pairs[ptr: ptr + batch_size]
-            packed_batch = self._pack_batch(batch_graphs)
+            packed_batch = self._pack_batch(batch_graphs, node_embeddings, edge_embeddings)
             if packed_batch is None:
                 # 如果这次采样失败，继续下一轮
                 print("[警告] 本次采样生成了空batch，跳过...")

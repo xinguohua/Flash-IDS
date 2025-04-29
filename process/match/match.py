@@ -318,14 +318,14 @@ def find_important_nodes_and_edges(graph_edge_mask, edge_index):
 #             i_iter + 1, info_str, time.time() - t_start))
 #         t_start = time.time()
 
-def train_model(G, communities):
+def train_model(G, communities, node_embeddings, edge_embeddings):
     use_cuda = torch.cuda.is_available()
     device = torch.device('cuda:0' if use_cuda else 'cpu')
     # 加载数据
     config = get_default_config()
     training_set, validation_set = build_datasets(config)
 
-    training_data_iter = training_set._pairs(config['training']['batch_size'], communities, G)
+    training_data_iter = training_set._pairs(config['training']['batch_size'], communities, G, node_embeddings, edge_embeddings)
     first_batch_graphs, _ = next(training_data_iter)
 
     # 初始化模型
@@ -413,7 +413,7 @@ def train_model(G, communities):
                 model.eval()
                 with torch.no_grad():
                     accumulated_pair_auc = []
-                    for batch in validation_set.pairs(config['evaluation']['batch_size'], communities, G):
+                    for batch in validation_set.pairs(config['evaluation']['batch_size'], communities, G, node_embeddings, edge_embeddings):
                         node_features, edge_features, from_idx, to_idx, graph_idx, labels = get_graph(batch)
                         labels = labels.to(device)
                         # eval_pairs = model(node_features.to(device), edge_features.to(device), from_idx.to(device),
@@ -445,7 +445,7 @@ def train_model(G, communities):
 
     # 训练完成后，锁定关键节点 解释整个图
     explainer = GNNExplainer(model, epochs=200)
-    for batch in validation_set.pairs(config['evaluation']['batch_size'], communities, G):
+    for batch in validation_set.pairs(config['evaluation']['batch_size'], communities, G, node_embeddings):
         node_features, edge_features, from_idx, to_idx, graph_idx, labels = get_graph(batch)
         labels = labels.to(device)
         edge_index = torch.stack([from_idx, to_idx], dim=0).to(device)

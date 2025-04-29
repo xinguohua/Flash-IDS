@@ -183,7 +183,7 @@ def get_feature_vector(model, triples_factory, name):
         ).detach().cpu().numpy()
         return embedding[0]  # 返回一维数组
 
-    # **检查关系**
+    # 检查关系*
     elif name in triples_factory.relation_to_id:
         relation_id = triples_factory.relation_to_id[name]
         relation_tensor = torch.tensor([relation_id], dtype=torch.long)

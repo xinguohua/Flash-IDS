@@ -52,6 +52,7 @@ for scene, category_data in json_map.items():
 
         # 训练分隔
         data = f.read().split('\n')
+        # TODO:
         # data = [line.split('\t') for line in data]
         # for test
         data = [line.split('\t') for line in data[:1000]]
@@ -81,27 +82,29 @@ communities = detect_communities(G)
 #                     callbacks=[saver, logger])
 # nodes = [infer(x) for x in phrases]
 # nodes = np.array(nodes)
+# TODO：移到features上
 # TransE
-nodes = []
 triples = graph_to_triples(G, features, mapp)
 trained_model, triples_factory = train_embedding_model(triples)
-# mapp.index(G.vs[head_id]['name'])
-nodeNames = [str(features[mapp.index(v["name"])]) for v in G.vs]  # 遍历 iGraph 的所有节点
-node_embeddings = {node: get_feature_vector(trained_model, triples_factory, node) for node in nodeNames}
-for node, embedding in node_embeddings.items():
-    nodes.append(embedding)
-    print(f"Node '{node}' embedding: {embedding[:5]}")  # 只显示前 5 维
-nodes = np.array(nodes)
+# 点
+node_name_list = [v["name"] for v in G.vs]
+node_feature_list = [str(features[mapp.index(name)]) for name in node_name_list]
+node_embeddings = {}
+for node_name, node_feature in zip(node_name_list, node_feature_list):
+    embedding = get_feature_vector(trained_model, triples_factory, node_feature)
+    node_embeddings[node_name] = embedding  # 使用node_name作为键存储embedding
+    print(f"Node '{node_name}' embedding: {embedding[:5]}")  # 只显示前5维的embedding
+# 边
+edge_list = [edge['actions'] if 'actions' in edge.attributes() else "undefined_relation" for edge in G.es]
+edge_embeddings = {}
+for relation in edge_list:
+    embedding = get_feature_vector(trained_model, triples_factory, relation)
+    edge_embeddings[relation] = embedding
+    print(f"Relation '{relation}' embedding: {embedding[:5]}")  # 打印前5维
 
-# 匹配模型
-# 图神经网络输入构建
-graph = Data(x=torch.tensor(nodes, dtype=torch.float).to(device), y=torch.tensor(labels, dtype=torch.long).to(device),
-             edge_index=torch.tensor(edges, dtype=torch.long).to(device))
-graph.n_id = torch.arange(graph.num_nodes)
-mask = torch.tensor([True] * graph.num_nodes, dtype=torch.bool)
 
 # 模型训练
 # 匹配
-train_model(G, communities)
+train_model(G, communities, node_embeddings, edge_embeddings)
 
 # TODO：推理

@@ -123,6 +123,7 @@ def add_attributes_new(d, paths):
     info = []
     for p in paths:
         with open(p) as f:
+            # TODO
             # for test: 只取每个文件前300条包含"EVENT"的
             data = [json.loads(x) for i, x in enumerate(f) if "EVENT" in x and i < 1000]
             # data = [json.loads(x) for i, x in enumerate(f) if "EVENT" in x ]
