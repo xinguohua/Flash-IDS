@@ -73,6 +73,7 @@ def prepare_graph_new(df):
     nodes, edges, relations = {}, [], {}
 
     for _, row in df.iterrows():
+        # TODO： 区分子节点
         action = row["action"]
         properties = [row['exec'], action] + ([row['path']] if row['path'] else [])
 
