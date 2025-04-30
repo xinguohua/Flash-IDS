@@ -87,19 +87,14 @@ def prepare_graph_new(df):
         edges.append(edge)
         relations[edge] = action
 
-        # 初始化igraph的图
-        G.add_vertices(1)
-        G.vs[len(G.vs) - 1]['name'] = actor_id
-        G.vs[len(G.vs) - 1]['type'] = ObjectType[row['actor_type']].value
-        G.vs[len(G.vs) - 1]['properties'] = properties
-        G.add_vertices(1)
-        G.vs[len(G.vs) - 1]['name'] = object_id
-        G.vs[len(G.vs) - 1]['type'] = ObjectType[row['object']].value
-        G.vs[len(G.vs) - 1]['properties'] = properties
-        G.add_edges([(actor_id, object_id)])
-        G.es[len(G.es) - 1]['actions'] = action
+        ## 构建图
+        # 点不重复添加
+        actor_idx = get_or_add_node(G, actor_id, ObjectType[row['actor_type']].value, properties)
+        object_idx = get_or_add_node(G, object_id, ObjectType[row['object']].value, properties)
+        # 边也不重复添加
+        add_edge_if_new(G, actor_idx, object_idx, action)
 
-    features, feat_labels, edge_index, index_map, relations_index = [], [], [[], []], {}, {}
+    features, edge_index, index_map, relations_index = [], [[], []], {}, {}
     for node_id, props in nodes.items():
         features.append(props)
         index_map[node_id] = len(features) - 1
@@ -107,6 +102,36 @@ def prepare_graph_new(df):
     update_edge_index(edges, edge_index, index_map, relations, relations_index)
 
     return features, edge_index, list(index_map.keys()), relations_index, G
+
+
+def get_or_add_node(G, node_id, node_type, properties):
+    """
+    查找图中是否已有节点 node_id：
+    - 如果有，返回该节点索引，并更新属性
+    - 如果没有，添加新节点并返回其索引
+    """
+    try:
+        v = G.vs.find(name=node_id)
+        v['properties'] = properties  # 可选更新属性
+        return v.index
+    except ValueError:
+        G.add_vertex(name=node_id, type=node_type, properties=properties)
+        return len(G.vs) - 1
+
+def add_edge_if_new(G, src, dst, action):
+    """
+    向图 G 添加一条从 src 到 dst 的边，附带 action 属性。
+    - 若边已存在且包含该 action，不做任何处理。
+    - 若边已存在但未包含该 action 再添加一条边
+    - 若边不存在，则添加边并设置 action。
+    """
+    if G.are_connected(src, dst):
+        eids = G.get_eids([(src, dst)], directed=True, error=False)
+        for eid in eids:
+            if G.es[eid]["actions"] == action:
+                return  # 该 action 已存在，不重复添加
+    G.add_edge(src, dst)
+    G.es[-1]["actions"] = action
 
 def add_attributes(d, p):
     f = open(p)

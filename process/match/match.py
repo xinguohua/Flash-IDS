@@ -81,8 +81,8 @@ def get_default_config():
                 # always generate graphs with 20 nodes and p_edge=0.2.
                 n_nodes_range=[20, 20],
                 p_edge_range=[0.2, 0.2],
-                n_changes_positive=1,
-                n_changes_negative=2,
+                n_changes_positive=0.1,
+                n_changes_negative=0.5,
                 validation_dataset_size=1000)),
         training=dict(
             batch_size=20,
@@ -100,7 +100,7 @@ def get_default_config():
             clip_value=10.0,
             # Increase this to train longer.
             # n_training_steps=500000,
-            n_training_steps=50,
+            n_training_steps=500000,
             # Print training information every this many training steps.
             # print_after=100,
             print_after=10,

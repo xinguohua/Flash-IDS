@@ -45,6 +45,9 @@ for scene, category_data in json_map.items():
         #  只处理良性类别
         if category != "benign":
             continue
+        # TODO: for test
+        if scene != "theia33":
+            continue
 
         print(f"正在处理: 场景={scene}, 类别={category}, 文件={json_files}")
         scene_category = f"/{scene}_{category}.txt"
@@ -71,6 +74,9 @@ for scene, category_data in json_map.items():
 # 训练用的数据集
 benign_df = pd.concat(all_dfs, ignore_index=True)
 benign_df = benign_df.drop_duplicates()
+
+benign_df.to_csv("benign_df.txt", sep='\t', index=False)
+
 # 成整个大图+捕捉特征语料+简化策略这里添加
 features, edges, mapp, relations, G = prepare_graph_new(benign_df)
 
