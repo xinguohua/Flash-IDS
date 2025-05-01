@@ -2,6 +2,8 @@ import pandas as pd
 import json
 import igraph as ig
 from type_enum import ObjectType
+import re
+
 
 # =================处理特征成图=========================
 def add_node_properties(nodes, node_id, properties):
@@ -20,7 +22,18 @@ def update_edge_index(edges, edge_index, index, relations, relations_index):
         relation = relations[(src_id, dst_id)]
         relations_index[(src, dst)] = relation
 
-# TODO：特征要补充啊
+def extract_properties(node_id, row, action, netobj2pro, subject2pro, file2pro):
+    if node_id in netobj2pro:
+        return netobj2pro[node_id]
+    elif node_id in file2pro:
+        return file2pro[node_id]
+    elif node_id in subject2pro:
+        return subject2pro[node_id]
+    else:
+        return [row.get('exec', ''), action] + ([row.get('path')] if row.get('path') else [])
+
+
+
 # 成图+捕捉特征语料+简化策略这里添加
 def prepare_graph(df):
     G = ig.Graph(directed=True)
@@ -66,22 +79,22 @@ def prepare_graph(df):
 
     return features, feat_labels, edge_index, list(index_map.keys()), relations_index, G
 
-# TODO：特征要补充啊
+
 # 成图+捕捉特征语料+简化策略这里添加
-def prepare_graph_new(df):
+def prepare_graph_new(df, all_netobj2pro, all_subject2pro, all_file2pro):
     G = ig.Graph(directed=True)
     nodes, edges, relations = {}, [], {}
 
     for _, row in df.iterrows():
-        # TODO： 区分子节点
         action = row["action"]
-        properties = [row['exec'], action] + ([row['path']] if row['path'] else [])
 
         actor_id = row["actorID"]
+        properties = extract_properties(actor_id, row, row["action"], all_netobj2pro, all_subject2pro, all_file2pro)
         add_node_properties(nodes, actor_id, properties)
 
         object_id = row["objectID"]
-        add_node_properties(nodes, object_id, properties)
+        properties1 = extract_properties(object_id, row, row["action"], all_netobj2pro, all_subject2pro, all_file2pro)
+        add_node_properties(nodes, object_id, properties1)
 
         edge = (actor_id, object_id)
         edges.append(edge)
@@ -186,7 +199,68 @@ def add_attributes(d, p):
     return d.merge(rdf, how='inner', on=['actorID', 'objectID', 'action', 'timestamp']).drop_duplicates()
 
 
-def add_attributes_new(d, paths):
+def collect_nodes_from_log(paths):
+    netobj2pro = {}
+    subject2pro = {}
+    file2pro = {}
+    for p in paths:
+        with open(p) as f:
+            for line in f:
+                # --- NetFlowObject ---
+                if '{"datum":{"com.bbn.tc.schema.avro.cdm18.NetFlowObject"' in line:
+                    try:
+                        res = re.findall(
+                            'NetFlowObject":{"uuid":"(.*?)"(.*?)"localAddress":"(.*?)","localPort":(.*?),"remoteAddress":"(.*?)","remotePort":(.*?),',
+                            line
+                        )[0]
+                        nodeid = res[0]
+                        srcaddr = res[2]
+                        srcport = res[3]
+                        dstaddr = res[4]
+                        dstport = res[5]
+                        nodeproperty = f"{srcaddr},{srcport},{dstaddr},{dstport}"
+                        netobj2pro[nodeid] = nodeproperty
+                    except:
+                        pass
+
+                # --- Subject ---
+                elif '{"datum":{"com.bbn.tc.schema.avro.cdm18.Subject"' in line:
+                    try:
+                        res = re.findall(
+                            'Subject":{"uuid":"(.*?)"(.*?)"cmdLine":{"string":"(.*?)"}(.*?)"properties":{"map":{"tgid":"(.*?)"',
+                            line
+                        )[0]
+                        nodeid = res[0]
+                        cmdLine = res[2]
+                        tgid = res[4]
+                        try:
+                            path_str = re.findall('"path":"(.*?)"', line)[0]
+                            path = path_str
+                        except:
+                            path = "null"
+                        nodeProperty = f"{cmdLine},{tgid},{path}"
+                        subject2pro[nodeid] = nodeProperty
+                    except:
+                        pass
+
+                # --- FileObject ---
+                elif '{"datum":{"com.bbn.tc.schema.avro.cdm18.FileObject"' in line:
+                    try:
+                        res = re.findall(
+                            'FileObject":{"uuid":"(.*?)"(.*?)"filename":"(.*?)"',
+                            line
+                        )[0]
+                        nodeid = res[0]
+                        filepath = res[2]
+                        nodeproperty = filepath
+                        file2pro[nodeid] = nodeproperty
+                    except:
+                        pass
+
+    return netobj2pro, subject2pro, file2pro
+
+
+def collect_edges_from_log(d, paths):
     info = []
     for p in paths:
         with open(p) as f:
@@ -194,7 +268,6 @@ def add_attributes_new(d, paths):
             # for test: 只取每个文件前300条包含"EVENT"的
             data = [json.loads(x) for i, x in enumerate(f) if "EVENT" in x and i < 1000]
             # data = [json.loads(x) for i, x in enumerate(f) if "EVENT" in x ]
-
         for x in data:
             try:
                 action = x['datum']['com.bbn.tc.schema.avro.cdm18.Event']['type']

@@ -8,12 +8,17 @@ from sklearn.utils import class_weight
 from torch.nn import CrossEntropyLoss
 from torch_geometric.data import Data
 from torch_geometric.loader import NeighborLoader
-from process.make_graph import add_attributes, prepare_graph, prepare_graph_new, add_attributes_new
+from process.make_graph import add_attributes, prepare_graph, prepare_graph_new, collect_edges_from_log, \
+    collect_nodes_from_log
 from process.match.match import train_model
 from process.model import EpochLogger, EpochSaver, GCN, infer
 from process.partition import detect_communities
 from embedding import graph_to_triples, train_embedding_model, get_feature_vector
 
+def merge_properties(src_dict, target_dict):
+    for k, v in src_dict.items():
+        if k not in target_dict:
+            target_dict[k] = v
 
 def collect_json_paths(base_dir):
     result = {}
@@ -40,6 +45,10 @@ base_path = "../data_files/theia"
 json_map = collect_json_paths(base_path)
 
 all_dfs = []
+all_netobj2pro = {}  # 网络对象 UUID → 属性字符串
+all_subject2pro = {}  # 进程 UUID → 属性字符串
+all_file2pro = {}  # 文件 UUID → 属性字符串
+
 for scene, category_data in json_map.items():
     for category, json_files in category_data.items():
         #  只处理良性类别
@@ -62,14 +71,18 @@ for scene, category_data in json_map.items():
         df = pd.DataFrame(data, columns=['actorID', 'actor_type', 'objectID', 'object', 'action', 'timestamp'])
         df = df.dropna()
         df.sort_values(by='timestamp', ascending=True, inplace=True)
-        # TODO 特征构建更完整
+
         # 形成一个更完整的视图
-        df = add_attributes_new(df, json_files)
+        netobj2pro, subject2pro, file2pro = collect_nodes_from_log(json_files)
+        df = collect_edges_from_log(df, json_files)
 
         # 只取良性前80%训练
         num_rows = int(len(df) * 0.8)
         df = df.iloc[:num_rows]
         all_dfs.append(df)
+        merge_properties(netobj2pro, all_netobj2pro)
+        merge_properties(subject2pro, all_subject2pro)
+        merge_properties(file2pro, all_file2pro)
 
 # 训练用的数据集
 benign_df = pd.concat(all_dfs, ignore_index=True)
@@ -78,9 +91,8 @@ benign_df = benign_df.drop_duplicates()
 benign_df.to_csv("benign_df.txt", sep='\t', index=False)
 
 # 成整个大图+捕捉特征语料+简化策略这里添加
-features, edges, mapp, relations, G = prepare_graph_new(benign_df)
+features, edges, mapp, relations, G = prepare_graph_new(benign_df, all_netobj2pro, all_subject2pro, all_file2pro)
 
-# TODO 分割得检查下 为什么孤立的点得验证下 Community 0
 # 大图分割
 communities = detect_communities(G)
 
