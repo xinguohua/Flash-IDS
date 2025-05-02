@@ -14,17 +14,32 @@ from process.match.graphembeddingnetwork import GraphEncoder, GraphAggregator
 from process.match.graphmatchingnetwork import GraphMatchingNet
 from process.match.loss import pairwise_loss
 
+def split_communities_renumbered(communities, ratio=0.9):
+    """按比例拆分并重新编号 community id"""
+    sorted_ids = sorted(communities.keys())
+    split_idx = int(len(sorted_ids) * ratio)
 
-def build_datasets(config):
+    train_ids = sorted_ids[:split_idx]
+    eval_ids = sorted_ids[split_idx:]
+
+    communities_train = {i: communities[cid] for i, cid in enumerate(train_ids)}
+    communities_eval = {i: communities[cid] for i, cid in enumerate(eval_ids)}
+
+    return communities_train, communities_eval
+
+
+def build_datasets(config, communities):
     """Build the training and evaluation datasets."""
     config = copy.deepcopy(config)
+    communities_train, communities_eval = split_communities_renumbered(communities)
     if config['data']['problem'] == 'graph_edit_distance':
+        print(f"[数据集构建] 训练社区数: {len(communities_train)}, 验证社区数: {len(communities_eval)}")
+
         dataset_params = config['data']['dataset_params']
-        validation_dataset_size = dataset_params['validation_dataset_size']
-        del dataset_params['validation_dataset_size']
-        training_set = GraphEditDistanceDataset(**dataset_params)
-        dataset_params['dataset_size'] = validation_dataset_size
-        validation_set = FixedGraphEditDistanceDataset(**dataset_params)
+        training_set = GraphEditDistanceDataset(**dataset_params, communities=communities_train)
+
+        dataset_params['dataset_size'] = len(communities_eval)
+        validation_set = FixedGraphEditDistanceDataset(**dataset_params, communities=communities_eval)
     else:
         raise ValueError('Unknown problem type: %s' % config['data']['problem'])
     return training_set, validation_set
@@ -82,8 +97,7 @@ def get_default_config():
                 n_nodes_range=[20, 20],
                 p_edge_range=[0.2, 0.2],
                 n_changes_positive=0.1,
-                n_changes_negative=0.5,
-                validation_dataset_size=1000)),
+                n_changes_negative=0.5)),
         training=dict(
             batch_size=20,
             learning_rate=1e-4,
@@ -323,10 +337,9 @@ def train_model(G, communities, node_embeddings, edge_embeddings):
     device = torch.device('cuda:0' if use_cuda else 'cpu')
     # 加载数据
     config = get_default_config()
-    training_set, validation_set = build_datasets(config)
+    training_set, validation_set = build_datasets(config, communities)
 
-    # TODO 生成pair目前肯定是不好
-    training_data_iter = training_set._pairs(config['training']['batch_size'], communities, G, node_embeddings, edge_embeddings)
+    training_data_iter = training_set._pairs(config['training']['batch_size'], G, node_embeddings, edge_embeddings)
     first_batch_graphs, _ = next(training_data_iter)
 
     # 初始化模型
@@ -415,7 +428,7 @@ def train_model(G, communities, node_embeddings, edge_embeddings):
                 model.eval()
                 with torch.no_grad():
                     accumulated_pair_auc = []
-                    for batch in validation_set.pairs(config['evaluation']['batch_size'], communities, G, node_embeddings, edge_embeddings):
+                    for batch in validation_set.pairs(config['evaluation']['batch_size'], G, node_embeddings, edge_embeddings):
                         node_features, edge_features, from_idx, to_idx, graph_idx, labels = get_graph(batch)
                         labels = labels.to(device)
                         # eval_pairs = model(node_features.to(device), edge_features.to(device), from_idx.to(device),

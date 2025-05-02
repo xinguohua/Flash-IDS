@@ -16,7 +16,7 @@ class GraphSimilarityDataset(object):
   in particular the functions that creates iterators over pairs and triplets.
   """
     @abc.abstractmethod
-    def pairs(self, batch_size, communities, G, node_embeddings, edge_embeddings):
+    def pairs(self, batch_size, G, node_embeddings, edge_embeddings):
         """Create an iterator over pairs.
     Args:
       batch_size: int, number of pairs in a batch.
@@ -155,6 +155,7 @@ class GraphEditDistanceDataset(GraphSimilarityDataset):
             p_edge_range,
             n_changes_positive,
             n_changes_negative,
+            communities,
             permute=True,
     ):
         """Constructor.
@@ -175,9 +176,10 @@ class GraphEditDistanceDataset(GraphSimilarityDataset):
         self._p_min, self._p_max = p_edge_range
         self._k_pos = n_changes_positive
         self._k_neg = n_changes_negative
+        self._communities = communities
         self._permute = permute
 
-    def _get_pair(self, positive, communities, G):
+    def _get_pair(self, positive, communities_list, idx, G):
         """Generate one pair of graphs from a given community structure.
 
         Args:
@@ -189,15 +191,17 @@ class GraphEditDistanceDataset(GraphSimilarityDataset):
             permuted_g (igraph.Graph): 经过节点重排的社区子图
             changed_g (igraph.Graph): 经过边修改的社区子图
         """
-        # 从 `communities` 里随机选一个社区
-        community_id = np.random.choice(list(communities.keys()))
-        community_nodes = communities[community_id]  # 该社区的节点列表
-        g = G.subgraph(community_nodes)  # 从原图 `G` 提取该社区的子图
+        # 从 `communities` 里选一个社区
+        if idx > len(communities_list)-1 :
+            idx = 0  # 可选：循环利用
+        community_nodes = communities_list[idx]
+        g = G.subgraph(community_nodes)
 
-        # 从剩余的社区中随机选择另一个社区，确保它与第一个社区不同
-        remaining_community_ids = [cid for cid in communities.keys() if cid != community_id]
-        changed_community_id = np.random.choice(remaining_community_ids)
-        changed_community_nodes = communities[changed_community_id]
+        if idx +1  > len(communities_list)-1 :
+            next = 0
+        else:
+            next = idx + 1
+        changed_community_nodes = communities_list[next]
         g_add = G.subgraph(changed_community_nodes)
 
         # 根据 `positive` 选择边的修改数量
@@ -208,14 +212,20 @@ class GraphEditDistanceDataset(GraphSimilarityDataset):
 
         return g, changed_g
 
-    def _pairs(self, batch_size, communities, G, node_embeddings, edge_embeddings):
+    def _pairs(self, batch_size, G, node_embeddings, edge_embeddings):
         """Yields batches of pair data."""
+        community_list = list(self._communities.values())  # 顺序列表
+        idx = 0
+
         while True:
             batch_graphs = []
             batch_labels = []
             positive = True
             for _ in range(batch_size):
-                g1, g2 = self._get_pair(positive, communities, G)
+                if idx + 1 >= len(community_list):
+                    idx = 0  # 重头开始
+
+                g1, g2 = self._get_pair(positive, community_list, idx, G)
                 batch_graphs.append((g1, g2))
                 batch_labels.append(1 if positive else -1)
                 positive = not positive
@@ -223,7 +233,6 @@ class GraphEditDistanceDataset(GraphSimilarityDataset):
             packed_graphs = self._pack_batch(batch_graphs, node_embeddings, edge_embeddings)
             if packed_graphs is None:
                 # 如果这次采样失败，继续下一轮
-                # TODO：为什么会这样空batch
                 print("[警告] 本次采样生成了空batch，跳过...")
                 continue
             labels = np.array(batch_labels, dtype=np.int32)
@@ -255,12 +264,11 @@ class GraphEditDistanceDataset(GraphSimilarityDataset):
             n_edges = g.ecount()
             # 检查是否为空图
             if n_nodes == 0:
-                # TODO：为什么会没有边/没有点
-                # print(f"[警告] 图 {i} 没有节点，跳过！")
+                print(f"[警告] 图 {i} 没有节点，跳过！")
                 continue
 
             if n_edges == 0:
-                # print(f"[警告] 图 {i} 没有边，跳过！")
+                print(f"[警告] 图 {i} 没有边，跳过！")
                 continue
 
             edges = np.array(g.get_edgelist(), dtype=np.int32)
@@ -289,11 +297,6 @@ class GraphEditDistanceDataset(GraphSimilarityDataset):
         if not from_idx:
             return None
 
-        # 使用计算好的节点特征 `node_embeddings`
-        # node_features = np.array(
-        #     [node_embeddings[name] for name in node_names],
-        #     dtype=np.float32
-        # )
         node_feature_list = []
         for name in node_names:
             if name in node_embeddings:
@@ -312,7 +315,6 @@ class GraphEditDistanceDataset(GraphSimilarityDataset):
                 edge_feature_list.append(np.ones(30, dtype=np.float32))
         edge_features = np.array(edge_feature_list, dtype=np.float32)
 
-        # TODO：替换特征
         return GraphData(
             from_idx=np.concatenate(from_idx, axis=0),
             to_idx=np.concatenate(to_idx, axis=0),
@@ -355,6 +357,7 @@ class FixedGraphEditDistanceDataset(GraphEditDistanceDataset):
             n_changes_positive,
             n_changes_negative,
             dataset_size,
+            communities,
             permute=True,
             seed=1234,
     ):
@@ -363,12 +366,13 @@ class FixedGraphEditDistanceDataset(GraphEditDistanceDataset):
             p_edge_range,
             n_changes_positive,
             n_changes_negative,
+            communities,
             permute=permute,
         )
         self._dataset_size = dataset_size
         self._seed = seed
 
-    def pairs(self, batch_size, communities, G, node_embeddings, edge_embeddings):
+    def pairs(self, batch_size, G, node_embeddings, edge_embeddings):
         """Yield pairs and labels."""
 
         if hasattr(self, "_pairs") and hasattr(self, "_labels"):
@@ -377,11 +381,16 @@ class FixedGraphEditDistanceDataset(GraphEditDistanceDataset):
         else:
             # get a fixed set of pairs first
             with reset_random_state(self._seed):
+                community_list = list(self._communities.values())
                 pairs = []
                 labels = []
                 positive = True
+                idx = 0
                 for _ in range(self._dataset_size):
-                    pairs.append(self._get_pair(positive, communities, G))
+                    pairs.append(self._get_pair(positive, community_list, idx, G))
+                    idx += 1
+                    if idx == len(community_list):
+                        idx = 0
                     labels.append(1 if positive else -1)
                     positive = not positive
             labels = np.array(labels, dtype=np.int32)
@@ -395,7 +404,6 @@ class FixedGraphEditDistanceDataset(GraphEditDistanceDataset):
             packed_batch = self._pack_batch(batch_graphs, node_embeddings, edge_embeddings)
             if packed_batch is None:
                 # 如果这次采样失败，继续下一轮
-                # TODO：为什么会这样空batch
                 print("[警告] 本次采样生成了空batch，跳过...")
                 ptr += batch_size
                 continue

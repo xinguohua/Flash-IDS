@@ -77,7 +77,7 @@ for scene, category_data in json_map.items():
         df = collect_edges_from_log(df, json_files)
 
         # 只取良性前80%训练
-        num_rows = int(len(df) * 0.8)
+        num_rows = int(len(df) * 0.9)
         df = df.iloc[:num_rows]
         all_dfs.append(df)
         merge_properties(netobj2pro, all_netobj2pro)
@@ -120,6 +120,8 @@ for relation in edge_list:
     embedding = get_feature_vector(trained_model, triples_factory, relation)
     edge_embeddings[relation] = embedding
     print(f"Relation '{relation}' embedding: {embedding[:5]}")  # 打印前5维
+
+
 
 # 模型训练
 # 匹配
