@@ -10,3 +10,6 @@ base_path = "../data_files/clearscope"
 分割训练集，编码，准备图数据
 3、match.pu
 图匹配比较、训练
+
+4、test1.py
+测试

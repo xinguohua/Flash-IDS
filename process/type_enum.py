@@ -8,3 +8,4 @@ class ObjectType(Enum):
     NETFLOW_OBJECT = 3
     PRINCIPAL_REMOTE = 4
     PRINCIPAL_LOCAL = 5
+    NetFlowObject = 6

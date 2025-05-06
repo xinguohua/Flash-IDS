@@ -374,7 +374,6 @@ class FixedGraphEditDistanceDataset(GraphEditDistanceDataset):
 
     def pairs(self, batch_size, G, node_embeddings, edge_embeddings):
         """Yield pairs and labels."""
-
         if hasattr(self, "_pairs") and hasattr(self, "_labels"):
             pairs = self._pairs
             labels = self._labels
