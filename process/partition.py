@@ -1,6 +1,6 @@
 import igraph as ig
 import leidenalg as la
-from type_enum import ObjectType
+from process.type_enum import ObjectType
 
 resource_types = {ObjectType.NETFLOW_OBJECT.value, ObjectType.FILE_OBJECT_BLOCK.value, ObjectType.MemoryObject.value}
 

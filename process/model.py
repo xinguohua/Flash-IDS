@@ -68,13 +68,13 @@ def visualize(h, color):
     plt.scatter(z[:, 0], z[:, 1], s=70, c=color, cmap="Set2")
     plt.show()
 
-def infer(document):
+def infer(document, path):
     encoder = PositionalEncoder(30)
-    w2vmodel = Word2Vec.load("../trained_weights/process/word2vec_theia_E3.model")
+    w2vmodel = Word2Vec.load(path)
     word_embeddings = [w2vmodel.wv[word] for word in document if word in w2vmodel.wv]
 
     if not word_embeddings:
-        return np.zeros(20)
+        return np.zeros(30)
 
     output_embedding = torch.tensor(np.array(word_embeddings), dtype=torch.float)
     if len(document) < 100000:

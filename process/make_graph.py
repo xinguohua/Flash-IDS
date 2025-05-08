@@ -1,7 +1,7 @@
 import pandas as pd
 import json
 import igraph as ig
-from type_enum import ObjectType
+from process.type_enum import ObjectType
 import re
 
 
