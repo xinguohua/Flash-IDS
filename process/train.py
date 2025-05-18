@@ -48,7 +48,7 @@ all_dfs = []
 all_netobj2pro = {}  # 网络对象 UUID → 属性字符串
 all_subject2pro = {}  # 进程 UUID → 属性字符串
 all_file2pro = {}  # 文件 UUID → 属性字符串
-
+# TODO 0、ATLAS 数据集
 for scene, category_data in json_map.items():
     for category, json_files in category_data.items():
         #  只处理良性类别
@@ -73,7 +73,9 @@ for scene, category_data in json_map.items():
         df.sort_values(by='timestamp', ascending=True, inplace=True)
 
         # 形成一个更完整的视图
+        # TODO 1、ATLAS json_files/解决每个节点和属性 得到收集节点-属性map dot
         netobj2pro, subject2pro, file2pro = collect_nodes_from_log(json_files)
+        # TODO 2、ATLAS 收集边 dot文件
         df = collect_edges_from_log(df, json_files)
 
         # 只取良性前80%训练
@@ -88,6 +90,7 @@ for scene, category_data in json_map.items():
 benign_df = pd.concat(all_dfs, ignore_index=True)
 benign_df = benign_df.drop_duplicates()
 
+# TODO ATLAS txt
 benign_df.to_csv("benign_df.txt", sep='\t', index=False)
 
 # 成整个大图+捕捉特征语料+简化策略这里添加
