@@ -65,10 +65,11 @@ def create_process_graph():
 def set_weight(G):
     # 设置默认权重
     set_default_weight(G)
-    # 设置进程-进程权重
-    set_process_weights(G)
-    # 设置进程-资源权重
-    set_resource_weights(G)
+    # TODO 修改下
+    # # 设置进程-进程权重
+    # set_process_weights(G)
+    # # 设置进程-资源权重
+    # set_resource_weights(G)
 
 
 def is_resource_dependent(G, source, target):
@@ -180,7 +181,7 @@ def set_process_weights(G, W_base=1.0, delta_factor=5):
 
             target_name = target["name"]
 
-            # **判断是否存在资源依赖**
+            # 判断是否存在资源依赖
             resDepFlag, distance = is_resource_dependent(G, source_name, target_name)
 
             if resDepFlag:
@@ -287,41 +288,43 @@ def print_graph_info(G):
         print(f"{source} -> {target}, Weight: {weight:.4f}")
 
 
-def get_all_paths(G, source_idx, target_idx, path=None, visited=None):
+def get_all_paths(G, source_idx, target_idx, path=None, visited=None, max_depth=10):
     """
-    使用深度优先搜索（DFS）找到从 source 到 target 的所有路径。
+    使用递归方式查找所有从 source_idx 到 target_idx 的路径。
 
     参数：
-    - G: igraph 图
+    - G: igraph 图对象
     - source_idx: 起始节点索引
     - target_idx: 目标节点索引
-    - path: 当前路径（递归使用）
-    - visited: 记录已访问节点（防止无限循环）
+    - path: 当前路径（递归内部使用）
+    - visited: 当前访问的节点集合（防止环）
+    - max_depth: 最大路径深度限制
 
     返回：
-    - paths: 所有路径的列表，每条路径是一个节点索引列表
+    - 所有合法路径的列表，每个路径是一个节点索引列表
     """
     if path is None:
         path = []
     if visited is None:
         visited = set()
 
-    # **添加当前节点到路径**
+    if len(path) > max_depth:
+        return []
+
     path.append(source_idx)
     visited.add(source_idx)
 
-    all_paths = []  # 存储所有找到的路径
+    all_paths = []
 
-    if len(path) > 2:  # 确保路径包含至少一个中间节点
-        all_paths.append(path[:])  # 返回路径副本，防止递归修改
+    if source_idx == target_idx:
+        all_paths.append(path[:])  # 保存当前路径的副本
+    else:
+        for neighbor in G.neighbors(source_idx, mode="all"):
+            if neighbor not in visited:
+                all_paths.extend(
+                    get_all_paths(G, neighbor, target_idx, path, visited, max_depth)
+                )
 
-    # **遍历所有邻居**
-    for neighbor in G.neighbors(source_idx, mode="all"):
-        if neighbor not in visited:  # 防止回路
-            new_paths = get_all_paths(G, neighbor, target_idx, path, visited)
-            all_paths.extend(new_paths)
-
-    # **回溯（解除访问标记）**
     path.pop()
     visited.remove(source_idx)
 
