@@ -9,7 +9,7 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 # 获取数据集
 data_handler = get_handler("atlas")
-# handler = processor_factory.get_handler("darpa")
+handler = get_handler("darpa")
 
 # 加载数据
 data_handler.load()

@@ -4,11 +4,17 @@ from .atlas_handler import ATLASHandler
 __all__ = ["DARPAHandler", "ATLASHandler"]
 
 handler_map = {
-    "darpa": DARPAHandler,
+    "theia": DARPAHandler,
+    "cadets": DARPAHandler,
+    "clearscope": DARPAHandler,
+    "trace": DARPAHandler,
     "atlas": ATLASHandler}
 
 path_map = {
-    "darpa": "../data_files/theia",
+    "theia": "../data_files/theia",
+    "cadets": "../data_files/cadets",
+    "clearscope": "../data_files/clearscope",
+    "trace": "../data_files/trace",
     "atlas": "../atlas_data",
 }
 
