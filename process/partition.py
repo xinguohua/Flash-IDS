@@ -65,11 +65,10 @@ def create_process_graph():
 def set_weight(G):
     # 设置默认权重
     set_default_weight(G)
-    # TODO 修改下
-    # # 设置进程-进程权重
-    # set_process_weights(G)
+    # 设置进程-进程权重
+    set_process_weights(G)
     # # 设置进程-资源权重
-    # set_resource_weights(G)
+    set_resource_weights(G)
 
 
 def is_resource_dependent(G, source, target):
@@ -81,7 +80,7 @@ def is_resource_dependent(G, source, target):
     source_idx = G.vs.find(name=source).index
     target_idx = G.vs.find(name=target).index
 
-    # **转换为无向图**，确保搜索时不受边方向影响
+    # 转换为无向图，确保搜索时不受边方向影响
     G_undirected = G.as_undirected()
     # 获取所有路径（在无向图中）
     paths = get_all_paths(G_undirected, source_idx, target_idx)
@@ -159,8 +158,8 @@ def set_resource_weights(G, W_base=1.0):
 def set_process_weights(G, W_base=1.0, delta_factor=5):
     """
     计算进程间的权重（基于进程节点维度），并按比例分配到边：
-    - 先计算每个进程的 **总权重**。
-    - 然后 **按比例归一化**，确保每条边的权重反映进程的重要性。
+    - 先计算每个进程的 总权重
+    - 然后 按比例归一化，确保每条边的权重反映进程的重要性。
     """
     process_weights = {}  # 存储每个进程对其他进程的初始权重
     total_weights = {}  # 存储每个进程的总权重（用于归一化）
@@ -288,9 +287,9 @@ def print_graph_info(G):
         print(f"{source} -> {target}, Weight: {weight:.4f}")
 
 
-def get_all_paths(G, source_idx, target_idx, path=None, visited=None, max_depth=10):
+def get_all_paths(G, source_idx, target_idx, path=None, visited=None, max_depth=10, max_steps=1000, step_counter=[0]):
     """
-    使用递归方式查找所有从 source_idx 到 target_idx 的路径。
+    使用递归方式查找所有从 source_idx 到 target_idx 的路径，并限制最大递归深度和总探索次数。
 
     参数：
     - G: igraph 图对象
@@ -299,6 +298,8 @@ def get_all_paths(G, source_idx, target_idx, path=None, visited=None, max_depth=
     - path: 当前路径（递归内部使用）
     - visited: 当前访问的节点集合（防止环）
     - max_depth: 最大路径深度限制
+    - max_steps: 最大递归尝试次数（防止爆栈）
+    - step_counter: 用于计数递归次数的列表（避免不可变类型）
 
     返回：
     - 所有合法路径的列表，每个路径是一个节点索引列表
@@ -308,6 +309,15 @@ def get_all_paths(G, source_idx, target_idx, path=None, visited=None, max_depth=
     if visited is None:
         visited = set()
 
+    # 超过探索次数，提前终止
+    if step_counter[0] >= max_steps:
+        return []
+
+    step_counter[0] += 1
+
+    if source_idx in visited:
+        return []
+
     if len(path) > max_depth:
         return []
 
@@ -315,15 +325,13 @@ def get_all_paths(G, source_idx, target_idx, path=None, visited=None, max_depth=
     visited.add(source_idx)
 
     all_paths = []
-
     if source_idx == target_idx:
-        all_paths.append(path[:])  # 保存当前路径的副本
+        all_paths.append(path[:])
     else:
         for neighbor in G.neighbors(source_idx, mode="all"):
-            if neighbor not in visited:
-                all_paths.extend(
-                    get_all_paths(G, neighbor, target_idx, path, visited, max_depth)
-                )
+            all_paths.extend(
+                get_all_paths(G, neighbor, target_idx, path, visited, max_depth, max_steps, step_counter)
+            )
 
     path.pop()
     visited.remove(source_idx)

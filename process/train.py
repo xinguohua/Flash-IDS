@@ -20,9 +20,8 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 logger = EpochLogger()
 saver = EpochSaver()
 
-# handler = processor_factory.get_handler("atlas")
-handler = processor_factory.get_handler("darpa")
-
+handler = processor_factory.get_handler("atlas")
+# handler = processor_factory.get_handler("darpa")
 
 handler.load()
 # 成整个大图+捕捉特征语料+简化策略这里添加
