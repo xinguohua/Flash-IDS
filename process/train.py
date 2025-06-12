@@ -8,8 +8,8 @@ from process.partition import detect_communities
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 # 获取数据集
-data_handler = get_handler("atlas")
-handler = get_handler("darpa")
+# data_handler = get_handler("atlas")
+data_handler = get_handler("theia")
 
 # 加载数据
 data_handler.load()
