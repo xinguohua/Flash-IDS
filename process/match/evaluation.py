@@ -63,6 +63,56 @@ def auc(scores, labels, **auc_args):
     return metrics.auc(fpr, tpr)
 
 
+def eval_all_metrics(scores, labels):
+    """
+    计算 Acc, F1, AUC, Precision, Recall, FPR
+    Args:
+        scores: Tensor, shape [N]，预测分数，越大越可能是正类
+        labels: Tensor, shape [N]，真实标签，+1 或 -1
+    Returns:
+        dict: 含 Acc, F1, AUC, Precision, Recall, FPR 的字典
+    """
+    # 转为 [0,1] 分数（用于 AUC）
+    scores = scores.detach().cpu()
+    labels = labels.detach().cpu()
+
+    scores_max = torch.max(scores)
+    scores_min = torch.min(scores)
+    scores_norm = (scores - scores_min) / (scores_max - scores_min + 1e-8)
+
+    # 将标签从 [-1, 1] 转成 [0, 1]
+    labels_bin = ((labels + 1) / 2).int()
+
+    # 二值化预测（阈值=0）
+    preds_bin = (scores > 0.5).int()
+
+    # 精度类指标
+    acc = metrics.accuracy_score(labels_bin, preds_bin)
+    f1 = metrics.f1_score(labels_bin, preds_bin, zero_division=0)
+    precision = metrics.precision_score(labels_bin, preds_bin, zero_division=0)
+    recall = metrics.recall_score(labels_bin, preds_bin, zero_division=0)
+
+    # AUC
+    if len(torch.unique(labels_bin)) < 2:
+        auc = None  # AUC 无法定义
+    else:
+        fpr_curve, tpr_curve, _ = metrics.roc_curve(labels_bin, scores_norm)
+        auc = metrics.auc(fpr_curve, tpr_curve)
+
+    # FPR = FP / (FP + TN)
+    cm = metrics.confusion_matrix(labels_bin, preds_bin, labels=[0,1])
+    tn, fp = cm[0,0], cm[0,1]
+    fpr = fp / (fp + tn + 1e-8)
+
+    return {
+        'Acc': acc,
+        'F1': f1,
+        'AUC': auc,
+        'Prec': precision,
+        'Recall': recall,
+        'FPR': fpr
+    }
+
 def compute_metrics(y_scores, y_true, threshold=0.5):
     """
     Compute evaluation metrics: Accuracy, F1, AUC, Precision, Recall, FPR.

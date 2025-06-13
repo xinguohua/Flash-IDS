@@ -1,18 +1,17 @@
 import collections
 import copy
 import time
-
 import numpy as np
 import torch
 import torch.nn as nn
-from torch_geometric.data import Data
+from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, roc_auc_score, confusion_matrix
 from torch_geometric.nn import GNNExplainer
-
 from process.match.dataset import GraphEditDistanceDataset, FixedGraphEditDistanceDataset
-from process.match.evaluation import compute_similarity, auc
+from process.match.evaluation import compute_similarity, auc, eval_all_metrics
 from process.match.graphembeddingnetwork import GraphEncoder, GraphAggregator
 from process.match.graphmatchingnetwork import GraphMatchingNet
 from process.match.loss import pairwise_loss
+
 
 def split_communities_renumbered(communities, ratio=0.9):
     """按比例拆分并重新编号 community id"""
@@ -300,9 +299,13 @@ def train_model(G, communities, node_embeddings, edge_embeddings):
         optimizer.step()
 
         sim_diff = sim_pos - sim_neg
+        # 越小越好
         accumulated_metrics['loss'].append(loss)
+        # 越大越好
         accumulated_metrics['sim_pos'].append(sim_pos)
+        # 越小越好
         accumulated_metrics['sim_neg'].append(sim_neg)
+        # 越大越好
         accumulated_metrics['sim_diff'].append(sim_diff)
 
         # evaluation
@@ -315,19 +318,16 @@ def train_model(G, communities, node_embeddings, edge_embeddings):
             # reset the metrics
             accumulated_metrics = collections.defaultdict(list)
 
-            # 计算AUC / Triplet Accuracy
             # 评估
             if ((i_iter + 1) // config['training']['print_after'] %
                     config['training']['eval_after'] == 0):
                 model.eval()
                 with torch.no_grad():
                     accumulated_pair_auc = []
+                    accumulated_all_metrics = []
                     for batch in validation_set.pairs(config['evaluation']['batch_size'], G, node_embeddings, edge_embeddings):
                         node_features, edge_features, from_idx, to_idx, graph_idx, labels = get_graph(batch)
                         labels = labels.to(device)
-                        # eval_pairs = model(node_features.to(device), edge_features.to(device), from_idx.to(device),
-                        #                    to_idx.to(device),
-                        #                    graph_idx.to(device), config['evaluation']['batch_size'] * 2)
                         edge_index = torch.stack([from_idx, to_idx], dim=0).to(device)
                         eval_pairs = model(
                             x=node_features.to(device),
@@ -335,19 +335,26 @@ def train_model(G, communities, node_embeddings, edge_embeddings):
                             batch = None,
                             graph_idx=graph_idx.to(device),
                             edge_features=edge_features.to(device),
-                            n_graphs=config['evaluation']['batch_size'] * 2  # 传递 n_graphs
+                            n_graphs=len(torch.unique(graph_idx)) # 传递 n_graphs
                         )
                         x, y = reshape_and_split_tensor(eval_pairs, 2)
                         similarity = compute_similarity(config, x, y)
                         pair_auc = auc(similarity, labels)
+                        metrics_dict = eval_all_metrics(similarity, labels)
                         accumulated_pair_auc.append(pair_auc)
-
-                    eval_metrics = {
-                        'pair_auc': np.mean(accumulated_pair_auc), }
+                        accumulated_all_metrics.append(metrics_dict)
+                    # 获取所有 keys（从第一个 batch 的字典中取）
+                    all_keys = accumulated_all_metrics[0].keys()
+                    # 对每个 key 取平均（过滤掉 None）
+                    avg_metrics = {
+                        k: np.mean([m[k] for m in accumulated_all_metrics if m[k] is not None])
+                        for k in all_keys
+                    }
                     info_str += ', ' + ', '.join(
-                        ['%s %.4f' % ('val/' + k, v) for k, v in eval_metrics.items()])
+                        ['val/%s %.4f' % (k, v) for k, v in avg_metrics.items()]
+                    )
                 model.train()
-            print('iter %d, %s, time %.2fs' % (
+            print('eval: iter %d, %s, time %.2fs' % (
                 i_iter + 1, info_str, time.time() - t_start))
             t_start = time.time()
     save_path = "saved_model.pth"
@@ -357,7 +364,7 @@ def train_model(G, communities, node_embeddings, edge_embeddings):
 
     # 训练完成后，锁定关键节点 解释整个图
     explainer = GNNExplainer(model, epochs=200)
-    for batch in validation_set.pairs(config['evaluation']['batch_size'], communities, G, node_embeddings, edge_embeddings):
+    for batch in validation_set.pairs(config['evaluation']['batch_size'], G, node_embeddings, edge_embeddings):
         node_features, edge_features, from_idx, to_idx, graph_idx, labels = get_graph(batch)
         labels = labels.to(device)
         edge_index = torch.stack([from_idx, to_idx], dim=0).to(device)
