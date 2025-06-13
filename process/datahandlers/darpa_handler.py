@@ -13,8 +13,8 @@ class DARPAHandler(BaseProcessor):
         json_map = collect_json_paths(self.base_path)
         for scene, category_data in json_map.items():
             for category, json_files in category_data.items():
-                #  只处理良性类别
-                if category != "benign":
+                #  训练只处理良性类别
+                if self.train and category != "benign":
                     continue
                 # TODO: for test
                 if scene != "theia33":
@@ -29,7 +29,7 @@ class DARPAHandler(BaseProcessor):
                 # TODO:
                 # data = [line.split('\t') for line in data]
                 # for test
-                data = [line.split('\t') for line in data[:1000]]
+                data = [line.split('\t') for line in data[:10000]]
                 df = pd.DataFrame(data, columns=['actorID', 'actor_type', 'objectID', 'object', 'action', 'timestamp'])
                 df = df.dropna()
                 df.sort_values(by='timestamp', ascending=True, inplace=True)
@@ -38,17 +38,30 @@ class DARPAHandler(BaseProcessor):
                 netobj2pro, subject2pro, file2pro = collect_nodes_from_log(json_files)
                 df = collect_edges_from_log(df, json_files)
 
-                # 只取良性前80%训练
-                num_rows = int(len(df) * 0.9)
-                df = df.iloc[:num_rows]
-                self.all_dfs.append(df)
+                if self.train:
+                    # 只取良性前80%训练
+                    num_rows = int(len(df) * 0.9)
+                    df = df.iloc[:num_rows]
+                    self.all_dfs.append(df)
+                else:
+                    # 数据选择逻辑
+                    if category == "benign":
+                        # 取后10%
+                        num_rows = int(len(df) * 0.9)
+                        df = df.iloc[num_rows:]
+                        self.all_dfs.append(df)
+                    elif category == "malicious":
+                        # 使用全部
+                        self.all_dfs.append(df)
+                        pass
+                    else:
+                        continue
                 merge_properties(netobj2pro, self.all_netobj2pro)
                 merge_properties(subject2pro, self.all_subject2pro)
                 merge_properties(file2pro, self.all_file2pro)
         # 训练用的数据集
-        benign_df = pd.concat(self.all_dfs, ignore_index=True)
-        self.benign_df = benign_df.drop_duplicates()
-        benign_df.to_csv("benign_df.txt", sep='\t', index=False)
+        use_df = pd.concat(self.all_dfs, ignore_index=True)
+        self.use_df = use_df.drop_duplicates()
 
 
     def build_graph(self):
@@ -56,7 +69,7 @@ class DARPAHandler(BaseProcessor):
         G = ig.Graph(directed=True)
         nodes, edges, relations = {}, [], {}
 
-        for _, row in self.benign_df.iterrows():
+        for _, row in self.use_df.iterrows():
             action = row["action"]
 
             actor_id = row["actorID"]
@@ -155,7 +168,7 @@ def collect_edges_from_log(d, paths):
         with open(p) as f:
             # TODO
             # for test: 只取每个文件前300条包含"EVENT"的
-            data = [json.loads(x) for i, x in enumerate(f) if "EVENT" in x and i < 1000]
+            data = [json.loads(x) for i, x in enumerate(f) if "EVENT" in x and i < 10000]
             # data = [json.loads(x) for i, x in enumerate(f) if "EVENT" in x ]
         for x in data:
             try:

@@ -1,7 +1,11 @@
+import math
+import time
+
+import numpy as np
 import copy
 import torch
 from process.match.dataset import FixedGraphEditDistanceDataset
-from process.match.evaluation import compute_similarity, auc, compute_metrics
+from process.match.evaluation import compute_similarity, auc, compute_metrics, eval_all_metrics
 from process.match.graphembeddingnetwork import GraphEncoder, GraphAggregator
 from process.match.graphmatchingnetwork import GraphMatchingNet
 
@@ -62,7 +66,7 @@ def get_default_config():
             loss='margin',  # other: hamming
             ),
         evaluation=dict(
-            batch_size=4),
+            batch_size=20),
         seed=8,
     )
 
@@ -149,47 +153,59 @@ def build_model(config, node_feature_dim, edge_feature_dim):
     return model
 
 def test_model(G, communities, node_embeddings, edge_embeddings, model_path="saved_model.pth"):
+    start = time.time()
     use_cuda = torch.cuda.is_available()
     device = torch.device('cuda:0' if use_cuda else 'cpu')
     config = get_default_config()
     validation_set = build_datasets(config, communities)
+    print("[TIMER] build_datasets:", time.time() - start)
 
-    first_data_iter = validation_set.pairs(1, G, node_embeddings, edge_embeddings)
+    first_data_iter = validation_set.pairs(config['evaluation']['batch_size'], G, node_embeddings, edge_embeddings)
     first_batch_graphs, _ = next(first_data_iter)
     node_feature_dim = first_batch_graphs.node_features.shape[-1]
     edge_feature_dim = first_batch_graphs.edge_features.shape[-1]
+    print("[TIMER] first_data_iter:", time.time() - start)
+
 
     model = build_model(config, node_feature_dim, edge_feature_dim)
     model.load_state_dict(torch.load(model_path, map_location=device))
     model.to(device)
     model.eval()
-
-    for batch in validation_set.pairs(config['evaluation']['batch_size'], G, node_embeddings, edge_embeddings):
-    # for batch in validation_set.pairs(4, G, node_embeddings, edge_embeddings):
+    accumulated_all_metrics = []
+    batch_size = config['evaluation']['batch_size']
+    total_batches = math.ceil(validation_set._dataset_size * 2 / batch_size)
+    print(f"total_batches: {total_batches}")
+    for batch_idx, batch in enumerate(validation_set.pairs(config['evaluation']['batch_size'], G, node_embeddings, edge_embeddings)):
         node_features, edge_features, from_idx, to_idx, graph_idx, labels = get_graph(batch)
         labels = labels.to(device)
-
         edge_index = torch.stack([from_idx, to_idx], dim=0).to(device)
         eval_pairs = model(
             x=node_features.to(device),
-            edge_index=edge_index,
+            edge_index=edge_index.to(device),
             batch=None,
             graph_idx=graph_idx.to(device),
             edge_features=edge_features.to(device),
-            n_graphs=config['evaluation']['batch_size'] * 2
-            # n_graphs = 8
+            n_graphs=len(torch.unique(graph_idx))
         )
         x, y = reshape_and_split_tensor(eval_pairs, 2)
         similarity = compute_similarity(config, x, y)
-        pair_auc = auc(similarity, labels)
-        metrics_result = compute_metrics(similarity, labels)
-        print("=== Evaluation Metrics ===")
-        print(f"Accuracy:  {metrics_result['Acc']:.4f}")
-        print(f"F1 Score:  {metrics_result['F1']:.4f}")
-        print(f"AUC:       {metrics_result['AUC']:.4f}")
-        print(f"Precision: {metrics_result['Prec']:.4f}")
-        print(f"Recall:    {metrics_result['Recall']:.4f}")
-        print(f"FPR:       {metrics_result['FPR']:.4f}")
-        print(f"验证集平均AUC: {pair_auc}")
+        metrics_dict = eval_all_metrics(similarity, labels)
+        accumulated_all_metrics.append(metrics_dict)
+        metric_str = ', '.join([f"{k}: {v:.4f}" if v is not None else f"{k}: N/A" for k, v in metrics_dict.items()])
+        print(f"[Batch {batch_idx + 1}/{total_batches}] {metric_str}")
+
+    all_keys = accumulated_all_metrics[0].keys()
+    # 对每个 key 取平均（过滤掉 None）
+    avg_metrics = {
+        k: np.mean([m[k] for m in accumulated_all_metrics if m[k] is not None])
+        for k in all_keys
+    }
+    print("=== Evaluation Metrics ===")
+    print(f"Accuracy:  {avg_metrics['Acc']:.4f}")
+    print(f"F1 Score:  {avg_metrics['F1']:.4f}")
+    print(f"AUC:       {avg_metrics['AUC']:.4f}")
+    print(f"Precision: {avg_metrics['Prec']:.4f}")
+    print(f"Recall:    {avg_metrics['Recall']:.4f}")
+    print(f"FPR:       {avg_metrics['FPR']:.4f}")
 
 

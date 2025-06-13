@@ -1,13 +1,14 @@
 from abc import ABC, abstractmethod
 
 class BaseProcessor(ABC):
-    def __init__(self, base_path):
+    def __init__(self, base_path, train):
         self.base_path = base_path
+        self.train = train
         self.all_dfs = []                 # 多个数据帧
         self.all_netobj2pro = {}  # 网络对象 UUID → 属性字符串
         self.all_subject2pro = {}  # 进程 UUID → 属性字符串
         self.all_file2pro = {}  # 文件 UUID → 属性字符串
-        self.benign_df = []
+        self.use_df = []
 
     @abstractmethod
     def load(self):

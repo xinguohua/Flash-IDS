@@ -84,7 +84,7 @@ def eval_all_metrics(scores, labels):
     labels_bin = ((labels + 1) / 2).int()
 
     # 二值化预测（阈值=0）
-    preds_bin = (scores > 0.5).int()
+    preds_bin = (scores_norm > 0.5).int()
 
     # 精度类指标
     acc = metrics.accuracy_score(labels_bin, preds_bin)

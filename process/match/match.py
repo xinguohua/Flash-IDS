@@ -259,11 +259,6 @@ def train_model(G, communities, node_embeddings, edge_embeddings):
         batch = next(training_data_iter)
         node_features, edge_features, from_idx, to_idx, graph_idx, labels = get_graph(batch)
         labels = labels.to(device)
-
-        #  前向传播
-        # graph_vectors = model(node_features.to(device), edge_features.to(device), from_idx.to(device),
-        #                       to_idx.to(device),
-        #                       graph_idx.to(device), training_n_graphs_in_batch)
         edge_index = torch.stack([from_idx, to_idx], dim=0).to(device)
         graph_vectors = model(
             node_features.to(device),
@@ -339,9 +334,7 @@ def train_model(G, communities, node_embeddings, edge_embeddings):
                         )
                         x, y = reshape_and_split_tensor(eval_pairs, 2)
                         similarity = compute_similarity(config, x, y)
-                        pair_auc = auc(similarity, labels)
                         metrics_dict = eval_all_metrics(similarity, labels)
-                        accumulated_pair_auc.append(pair_auc)
                         accumulated_all_metrics.append(metrics_dict)
                     # 获取所有 keys（从第一个 batch 的字典中取）
                     all_keys = accumulated_all_metrics[0].keys()
