@@ -4,13 +4,6 @@ import igraph as ig
 from collections import deque
 import random
 
-from process.datahandlers import get_handler
-from process.partition import detect_communities
-
-
-# TODO 1、把真实数据数据集成上来 2、串联匹配可解释性 3、triple 4、tuoyu测试
-
-
 # client = OpenAI(
 #     # defaults to os.environ.get("OPENAI_API_KEY")
 #     api_key="sk-xhUZwtWJmekrtdX2hLvnC6nnuNSfe6qNIidWbzRIQBoZCEMa",
@@ -44,16 +37,23 @@ def call_llm(template):
     answer = response.choices[0].message.content.strip()
     return answer
 
-
-def bfs_igraph_multi_start(G, start_vertices):
+def bfs_igraph_multi_start(graph, start_vertices):
     """
     支持多个起点的 BFS，记录所有完整路径
     :param graph: igraph.Graph 对象
     :param select_k: 每个节点随机选择的邻居数量
     :return: 所有完整路径 (list)
     """
+    vertex_names = graph.vs["name"]
     paths = {}  # 记录每个节点的完整路径
     final_paths = []  # 存放完整路径结果
+
+    # 构建邻接表
+    adjacency_list = {name: [] for name in vertex_names}
+    for edge in graph.es:
+        source, target = vertex_names[edge.source], vertex_names[edge.target]
+        adjacency_list[source].append(target)
+        adjacency_list[target].append(source)
 
     # BFS 初始化
     visited = set()
@@ -68,15 +68,11 @@ def bfs_igraph_multi_start(G, start_vertices):
 
     while queue:
         node = queue.popleft()
-        neighbors_idx = [
-            nbr_idx
-            for nbr_idx in G.neighbors(int(node), mode="ALL")
-            if nbr_idx not in visited
-        ]
+        neighbors = [n for n in adjacency_list[node] if n not in visited]
 
-        if not neighbors_idx:
+        if not neighbors:
             # 叶子节点，记录完整路径
-            final_paths.append("->".join(map(str, paths[node])))
+            final_paths.append("->".join(paths[node]))
             # TODO：LLM选择
             if llm_should_stop(final_paths):
                 print("LLM判定停止，BFS退出")
@@ -84,62 +80,62 @@ def bfs_igraph_multi_start(G, start_vertices):
         else:
             # 随机选择 K 个邻居扩展
             # ✅ TODO: LLM 控制选择策略（示例：LLM 让你选或筛选 neighbor）随机选择 K 个邻居扩展
-            neighbors_with_relation = []
-            for neighbor_idx in neighbors_idx:
-                try:
-                    edge_id = G.get_eid(node, neighbor_idx, directed=False)
-                    relation = G.es[edge_id]["actions"]
-                    neighbors_with_relation.append((node, relation, neighbor_idx))
-                except Exception as e:
-                    print(f" 无法获取边 {node} -> {neighbor_idx}：{e}")
-            selected_neighbors = llm_select_neighbors(node, neighbors_with_relation, paths[node])
-            print(
-                f"node {node} 随机选择 {len(selected_neighbors)} 个邻居，选择前 {neighbors_idx}，选择后 {selected_neighbors}")
-            for src, relation, dst in selected_neighbors:
-                visited.add(dst)
-                queue.append(dst)
-                paths[dst] = paths[node] + [(src, relation, dst)]  # 累加三元组路径
+            selected_neighbors = llm_select_neighbors(node, neighbors, paths[node])
+            print(f"node {node} 随机选择 {len(selected_neighbors)} 个邻居，选择前 {neighbors}，选择后 {selected_neighbors}")
+            for neighbor in selected_neighbors:
+                visited.add(neighbor)
+                queue.append(neighbor)
+                paths[neighbor] = paths[node] + [neighbor]  # 更新路径
 
     print(f"\n最终完整路径集合: {final_paths}")
     return final_paths
 
 
-def llm_select_neighbors(current_node, candidate_triples, current_path):
-    """
-    调用大模型 LLM 决策：从候选邻居三元组中选择要走的边
-    :param current_node: 当前节点
-    :param candidate_triples: [(src, relation, dst), ...]
-    :param current_path: 当前已走的路径（三元组路径）
-    :return: LLM 选择的三元组列表
-    """
-    # 格式化路径和候选边为字符串
-    triples_str = ", ".join([f"{s}-[{r}]->{o}" for s, r, o in candidate_triples])
+# def llm_select_neighbors(current_node, candidate_neighbors, current_path):
+#     """
+#     模拟 LLM 决策：从候选邻居中选择要走的节点
+#     :param current_node: 当前节点
+#     :param candidate_neighbors: 邻居列表
+#     :param current_path: 当前已经走的路径
+#     :return: 选择的邻居列表
+#     """
+#     select_k = 2
+#     selected = random.sample(candidate_neighbors, min(select_k, len(candidate_neighbors)))
+#     return selected
 
+def llm_select_neighbors(current_node, candidate_neighbors, current_path):
+    """
+    调用大模型 LLM 决策：从候选邻居中选择要走的节点
+    :param current_node: 当前节点
+    :param candidate_neighbors: 邻居列表
+    :param current_path: 当前已走的路径
+    :return: LLM 选择的邻居列表
+    """
+
+    # 拼接Prompt，清楚告诉LLM当前节点、路径和候选邻居
     template = (
         f"当前节点为：{current_node}\n"
         f"当前已走路径为：{current_path}\n"
-        f"候选三元组为：[{triples_str}]\n"
-        "请从候选三元组中选择你认为最优的（可选择多个），\n"
-        "直接返回 Python 列表格式，例如： [('A', 'rel1', 'B'), ('B', 'rel2', 'C')]。"
+        f"候选邻居节点为：{candidate_neighbors}\n"
+        "请从候选邻居中选择你认为最优的节点（可选择多个），"
+        "返回一个 Python 列表格式，例如：['B', 'C']。"
     )
 
     # 调用大模型
     response = call_llm(template)
     print(f"🧠 LLM选择邻居回复：{response}")
 
-    # 尝试解析返回值为三元组列表
+    # 简单处理 LLM 返回（假设LLM返回的是 Python 列表格式字符串）
     try:
         selected = eval(response)
-        if isinstance(selected, list) and all(len(t) == 3 for t in selected):
-            # 转换 src 和 dst 为 int
-            selected = [(int(s), r, int(o)) for s, r, o in selected]
+        if isinstance(selected, list):
             return selected
     except Exception as e:
         print(f"⚠️ LLM返回无法解析，默认随机选：{e}")
 
-    # 如果 LLM 返回出错，随机 fallback
+    # 如果 LLM 返回有误，fallback 到随机
     select_k = 2
-    return random.sample(candidate_triples, min(select_k, len(candidate_triples)))
+    return random.sample(candidate_neighbors, min(select_k, len(candidate_neighbors)))
 
 
 def llm_should_stop(final_paths):
@@ -169,23 +165,25 @@ def llm_should_stop(final_paths):
         print("LLM判定：继续搜索")
         return False
 
+# 创建无向图
+# g = ig.Graph(directed=False)
+# g.add_vertices(["A", "B", "C", "D", "E", "F"])
+# g.add_edges([("A", "B"), ("A", "C"), ("B", "D"), ("B", "E"), ("C", "F"), ("E", "F")])
 
-# 获取数据集
-# data_handler = get_handler("atlas")
-data_handler = get_handler("theia", True)
-# 加载数据
-data_handler.load()
-# 成整个大图+捕捉特征语料+简化策略这里添加
-features, edges, mapp, relations, G = data_handler.build_graph()
-# 大图分割
-communities = detect_communities(G)
-# TODO 从中选择一个图 配合测试
-g = communities[0]
-subgraph_indices = [G.vs.find(name=n).index for n in g]
-G_sub = G.subgraph(subgraph_indices)
-# TODO 开始节点也随机 结合匹配 要id
-multi_start_nodes = random.sample(G_sub.vs.indices, k=2)
-final_full_paths = bfs_igraph_multi_start(G_sub, multi_start_nodes)
+g = ig.Graph(directed=False)
+g.add_vertices(["A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K"])
+g.add_edges([
+    ("A", "B"), ("A", "C"), ("A", "D"),
+    ("B", "E"), ("B", "F"),
+    ("F", "J"),
+    ("C", "G"),
+    ("D", "H"), ("D", "I"),
+    ("H", "K")
+])
+
+# 多个起点测试
+multi_start_nodes = ["A", "C"]
+final_full_paths = bfs_igraph_multi_start(g, multi_start_nodes)
 
 print("\n最终完整路径:")
 for path in final_full_paths:
