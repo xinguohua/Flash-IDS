@@ -9,6 +9,7 @@ class BaseProcessor(ABC):
         self.all_subject2pro = {}  # 进程 UUID → 属性字符串
         self.all_file2pro = {}  # 文件 UUID → 属性字符串
         self.use_df = []
+        self.all_labels = []
 
     @abstractmethod
     def load(self):

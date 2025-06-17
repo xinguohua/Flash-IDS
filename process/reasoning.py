@@ -1,192 +1,138 @@
-import json
-from openai import OpenAI
-import igraph as ig
-from collections import deque
-import random
-
+import numpy as np
 from process.datahandlers import get_handler
-from process.partition import detect_communities
-
-
+from process.embedders import get_embedder_by_name
+from process.partition import detect_communities_with_id
+from reason_graph import reson_test_model
 # TODO 1、把真实数据数据集成上来 2、串联匹配可解释性 3、triple 4、tuoyu测试
 
+def substitute_random_edges_ig(G, ratio=0.1):
+    """在 igraph.Graph (有向图) 中随机替换 `n` 条边"""
+    G = G.copy()  # 复制图，避免修改原始图
+    n_nodes = G.vcount()  # 获取节点数
+    edges = G.get_edgelist()  # 获取所有边的列表
 
-# client = OpenAI(
-#     # defaults to os.environ.get("OPENAI_API_KEY")
-#     api_key="sk-xhUZwtWJmekrtdX2hLvnC6nnuNSfe6qNIidWbzRIQBoZCEMa",
-#     base_url="https://api.chatanywhere.tech/v1"
-#     # base_url="https://api.chatanywhere.org/v1"
-# )
-#
-# response = client.chat.completions.create(
-#     model="gpt-4",  # 选择模型
-#     messages=[{"role": "user", "content": "你好，你是什么模型"}]
-# )
-#
-# print(response.choices[0].message.content)
+    ############################操作边#################################################
+    # 1、随机选择 `n` 条边进行删除
+    total_edges = len(edges)
+    n_changes_edges= int(total_edges * ratio)
+    # 1、随机选择 `n_changes_edges` 条边进行删除
+    e_remove_idx = np.random.choice(total_edges, n_changes_edges, replace=False)  # 选 `n_changes_edges` 条边索引
+    e_remove = [edges[i] for i in e_remove_idx]  # 获取要删除的边
+    edge_set = set(map(tuple, edges))  # 转换为集合，方便查重
 
-def call_llm(template):
+    # 2、随机生成 `n_changes_edges` 条新边，确保新边不重复且不和删除的边相同
+    e_add = set()
+    while len(e_add) < n_changes_edges:
+        e = tuple(np.random.choice(n_nodes, 2, replace=False))  # 生成 (src, dst)
+        if e not in edge_set and e not in e_remove and e not in e_add:  # 确保新边不重复且与删除的边不同
+            e_add.add(e)
+
+    # 3、执行删除和添加
+    G.delete_edges(e_remove)  # 删除选定的 `n` 条边
+    G.add_edges(list(e_add))  # 添加 `n` 条新边
+
+    #############################操作点##################################
+    # 删点 关联的边删掉
+    # 删除节点的比例
+    nodes_to_remove_count = int(n_nodes * ratio)  # 按比例确定删除的节点数
+    nodes_to_remove = np.random.choice(G.vs.indices, size=nodes_to_remove_count, replace=False)  # 随机选取节点
+    nodes_to_remove_set = set(nodes_to_remove)
+    G.delete_vertices(nodes_to_remove_set)
+    return G  # 返回修改后的图
+
+def get_pair(G, ratio = 0.1):
+    """Generate one pair of graphs from a given community structure.
+
+    Args:
+        positive (bool): 是否是正样本
+        communities (dict): {社区ID: [节点列表]}
+        G (igraph.Graph): 原始的完整图
+
+    Returns:
+        permuted_g (igraph.Graph): 经过节点重排的社区子图
+        changed_g (igraph.Graph): 经过边修改的社区子图
     """
-    通用大模型调用封装：
-    - 输入：template（prompt字符串）
-    - 输出：LLM完整返回的文本内容
-    """
-    client = OpenAI(
-        api_key="sk-xhUZwtWJmekrtdX2hLvnC6nnuNSfe6qNIidWbzRIQBoZCEMa",
-        base_url="https://api.chatanywhere.tech/v1"
-    )
+    # 对子图 `g` 进行边修改
+    """在 igraph.Graph (有向图) 中随机替换 `n` 条边"""
+    G_c = G.copy()  # 复制图，避免修改原始图
+    n_nodes = G_c.vcount()  # 获取节点数
+    edges = G_c.get_edgelist()  # 获取所有边的列表
 
-    response = client.chat.completions.create(
-        model="gpt-4",
-        messages=[{"role": "user", "content": template}]
-    )
+    ############################操作边#################################################
+    # 1、随机选择 `n` 条边进行删除
+    total_edges = len(edges)
+    n_changes_edges = int(total_edges * ratio)
+    # 1、随机选择 `n_changes_edges` 条边进行删除
+    e_remove_idx = np.random.choice(total_edges, n_changes_edges, replace=False)  # 选 `n_changes_edges` 条边索引
+    e_remove = [edges[i] for i in e_remove_idx]  # 获取要删除的边
+    edge_set = set(map(tuple, edges))  # 转换为集合，方便查重
 
-    answer = response.choices[0].message.content.strip()
-    return answer
+    # 2、随机生成 `n_changes_edges` 条新边，确保新边不重复且不和删除的边相同
+    e_add = set()
+    while len(e_add) < n_changes_edges:
+        e = tuple(np.random.choice(n_nodes, 2, replace=False))  # 生成 (src, dst)
+        if e not in edge_set and e not in e_remove and e not in e_add:  # 确保新边不重复且与删除的边不同
+            e_add.add(e)
 
+    # 3、执行删除和添加
+    G_c.delete_edges(e_remove)  # 删除选定的 `n` 条边
+    G_c.add_edges(list(e_add))  # 添加 `n` 条新边
 
-def bfs_igraph_multi_start(G, start_vertices):
-    """
-    支持多个起点的 BFS，记录所有完整路径
-    :param graph: igraph.Graph 对象
-    :param select_k: 每个节点随机选择的邻居数量
-    :return: 所有完整路径 (list)
-    """
-    paths = {}  # 记录每个节点的完整路径
-    final_paths = []  # 存放完整路径结果
+    #############################操作点##################################
+    # 删点 关联的边删掉
+    # 删除节点的比例
+    nodes_to_remove_count = int(n_nodes * ratio)  # 按比例确定删除的节点数
+    nodes_to_remove = np.random.choice(G_c.vs.indices, size=nodes_to_remove_count, replace=False)  # 随机选取节点
+    nodes_to_remove_set = set(nodes_to_remove)
+    G_c.delete_vertices(nodes_to_remove_set)
 
-    # BFS 初始化
-    visited = set()
-    queue = deque()
+    return G, G_c
 
-    # 初始化多个起点
-    print(f"初始节点{start_vertices}")
-    for start in start_vertices:
-        queue.append(start)
-        visited.add(start)
-        paths[start] = [start]
-
-    while queue:
-        node = queue.popleft()
-        neighbors_idx = [
-            nbr_idx
-            for nbr_idx in G.neighbors(int(node), mode="ALL")
-            if nbr_idx not in visited
-        ]
-
-        if not neighbors_idx:
-            # 叶子节点，记录完整路径
-            final_paths.append("->".join(map(str, paths[node])))
-            # TODO：LLM选择
-            if llm_should_stop(final_paths):
-                print("LLM判定停止，BFS退出")
-                break
+def construct_test_graph_pair(G):
+    communities = detect_communities_with_id(G)
+    malicious_communities = []
+    benign_communities = []
+    for community_id in communities:
+        members = communities[community_id]
+        subgraph = G.subgraph(members)
+        labels = []
+        for v in subgraph.vs:
+            label = v["label"] if "label" in v.attributes() else None
+            labels.append(label)
+        # TODO
+        if any(lbl == 1 for lbl in labels):
+            malicious_communities.append(subgraph)
         else:
-            # 随机选择 K 个邻居扩展
-            # ✅ TODO: LLM 控制选择策略（示例：LLM 让你选或筛选 neighbor）随机选择 K 个邻居扩展
-            neighbors_with_relation = []
-            for neighbor_idx in neighbors_idx:
-                try:
-                    edge_id = G.get_eid(node, neighbor_idx, directed=False)
-                    relation = G.es[edge_id]["actions"]
-                    neighbors_with_relation.append((node, relation, neighbor_idx))
-                except Exception as e:
-                    print(f" 无法获取边 {node} -> {neighbor_idx}：{e}")
-            selected_neighbors = llm_select_neighbors(node, neighbors_with_relation, paths[node])
-            print(
-                f"node {node} 随机选择 {len(selected_neighbors)} 个邻居，选择前 {neighbors_idx}，选择后 {selected_neighbors}")
-            for src, relation, dst in selected_neighbors:
-                visited.add(dst)
-                queue.append(dst)
-                paths[dst] = paths[node] + [(src, relation, dst)]  # 累加三元组路径
+            benign_communities.append(subgraph)
 
-    print(f"\n最终完整路径集合: {final_paths}")
-    return final_paths
+    if not malicious_communities:
+        raise ValueError("未找到包含恶意节点的社区。")
 
-
-def llm_select_neighbors(current_node, candidate_triples, current_path):
-    """
-    调用大模型 LLM 决策：从候选邻居三元组中选择要走的边
-    :param current_node: 当前节点
-    :param candidate_triples: [(src, relation, dst), ...]
-    :param current_path: 当前已走的路径（三元组路径）
-    :return: LLM 选择的三元组列表
-    """
-    # 格式化路径和候选边为字符串
-    triples_str = ", ".join([f"{s}-[{r}]->{o}" for s, r, o in candidate_triples])
-
-    template = (
-        f"当前节点为：{current_node}\n"
-        f"当前已走路径为：{current_path}\n"
-        f"候选三元组为：[{triples_str}]\n"
-        "请从候选三元组中选择你认为最优的（可选择多个），\n"
-        "直接返回 Python 列表格式，例如： [('A', 'rel1', 'B'), ('B', 'rel2', 'C')]。"
-    )
-
-    # 调用大模型
-    response = call_llm(template)
-    print(f"🧠 LLM选择邻居回复：{response}")
-
-    # 尝试解析返回值为三元组列表
-    try:
-        selected = eval(response)
-        if isinstance(selected, list) and all(len(t) == 3 for t in selected):
-            # 转换 src 和 dst 为 int
-            selected = [(int(s), r, int(o)) for s, r, o in selected]
-            return selected
-    except Exception as e:
-        print(f"⚠️ LLM返回无法解析，默认随机选：{e}")
-
-    # 如果 LLM 返回出错，随机 fallback
-    select_k = 2
-    return random.sample(candidate_triples, min(select_k, len(candidate_triples)))
-
-
-def llm_should_stop(final_paths):
-    """
-    调用大模型 LLM 判断：根据当前完整路径集合，决定是否停止BFS
-    大模型会基于以下规则作答：
-    - 如果路径数量超过3条，建议停止
-    - 如果路径中包含关键节点 'J'，建议停止
-    """
-    # 动态拼接路径列表到 prompt 中
-    template = (
-        f"以下是当前完整路径集合：{final_paths}。\n"
-        "请判断：是否应该停止遍历？\n"
-        "规则：如果路径数量超过3条 或 路径中包含关键节点 'J'，则建议停止。\n"
-        "请直接回答：是 或 否。"
-    )
-
-    # 调用封装好的 LLM
-    response = call_llm(template)
-    print("🧠 大模型回复：", response)
-
-    # 自动识别LLM回答
-    if "是" in response or "yes" in response.lower():
-        print("LLM判定：停止")
-        return True
-    else:
-        print("LLM判定：继续搜索")
-        return False
-
+    # 具有恶意label的图保留label在删减下其他边 得到查询图 和原图当作被查询图
+    pair_list = []
+    for malicious_community in malicious_communities:
+        query_graph, provence_graph = get_pair(malicious_community)
+        pair_list.append((query_graph, provence_graph))
+    return pair_list
 
 # 获取数据集
 # data_handler = get_handler("atlas")
-data_handler = get_handler("theia", True)
+data_handler = get_handler("theia", False)
 # 加载数据
 data_handler.load()
 # 成整个大图+捕捉特征语料+简化策略这里添加
 features, edges, mapp, relations, G = data_handler.build_graph()
-# 大图分割
-communities = detect_communities(G)
-# TODO 从中选择一个图 配合测试
-g = communities[0]
-subgraph_indices = [G.vs.find(name=n).index for n in g]
-G_sub = G.subgraph(subgraph_indices)
-# TODO 开始节点也随机 结合匹配 要id
-multi_start_nodes = random.sample(G_sub.vs.indices, k=2)
-final_full_paths = bfs_igraph_multi_start(G_sub, multi_start_nodes)
+# 中选择恶意图对配合测试
+pair_list = construct_test_graph_pair(G)
 
-print("\n最终完整路径:")
-for path in final_full_paths:
-    print(path)
+# 嵌入构造特征向量
+embedder_class = get_embedder_by_name("word2vec")
+# embedder_class = get_embedder_by_name("transe")
+embedder = embedder_class(G, features, mapp)
+embedder.train()
+node_embeddings = embedder.embed_nodes()
+edge_embeddings = embedder.embed_edges()
+
+# TODO 结合匹配得到开始节点
+for pair in pair_list:
+    reson_test_model(pair, node_embeddings, edge_embeddings)

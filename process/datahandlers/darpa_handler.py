@@ -2,7 +2,7 @@ import igraph as ig
 import re
 import pandas as pd
 import json
-from .common import merge_properties, collect_json_paths
+from .common import merge_properties, collect_json_paths, collect_label_paths
 from .base import BaseProcessor
 from .type_enum import ObjectType
 from .common import merge_properties, collect_dot_paths,extract_properties,add_node_properties,get_or_add_node,add_edge_if_new,update_edge_index
@@ -11,13 +11,20 @@ from .common import merge_properties, collect_dot_paths,extract_properties,add_n
 class DARPAHandler(BaseProcessor):
     def load(self):
         json_map = collect_json_paths(self.base_path)
+        label_map = collect_label_paths(self.base_path)
         for scene, category_data in json_map.items():
+            # TODO: for test
+            if scene != "theia33":
+                continue
+            if self.train == False:
+                label_file = open(label_map[scene])
+                print(f"正在处理: 场景={scene}, label={label_map[scene]}")
+                self.all_labels.extend([
+                    line.strip() for line in label_file.read().splitlines() if line.strip()
+                ])
             for category, json_files in category_data.items():
                 #  训练只处理良性类别
                 if self.train and category != "benign":
-                    continue
-                # TODO: for test
-                if scene != "theia33":
                     continue
 
                 print(f"正在处理: 场景={scene}, 类别={category}, 文件={json_files}")
@@ -64,6 +71,7 @@ class DARPAHandler(BaseProcessor):
         self.use_df = use_df.drop_duplicates()
 
 
+
     def build_graph(self):
         """成图+捕捉特征语料+简化策略这里添加"""
         G = ig.Graph(directed=True)
@@ -89,6 +97,11 @@ class DARPAHandler(BaseProcessor):
             # 点不重复添加
             actor_idx = get_or_add_node(G, actor_id, ObjectType[row['actor_type']].value, properties)
             object_idx = get_or_add_node(G, object_id, ObjectType[row['object']].value, properties)
+            # 标注label
+            print(f"actor_id{actor_id}")
+            print(f"object_id{object_id} value{int(object_id in self.all_labels)}")
+            G.vs[actor_idx]["label"] = int(actor_id in self.all_labels)
+            G.vs[object_idx]["label"] = int(object_id in self.all_labels)
             # 边也不重复添加
             add_edge_if_new(G, actor_idx, object_idx, action)
 

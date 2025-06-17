@@ -1,4 +1,6 @@
 import os
+from collections import defaultdict
+
 
 def merge_properties(src_dict, target_dict):
     for k, v in src_dict.items():
@@ -26,6 +28,19 @@ def collect_json_paths(base_dir):
                         if file.endswith(".json") and not file.startswith("._"):
                             full_path = os.path.join(category_path, file)
                             result[subdir][category].append(full_path)
+    return result
+
+def collect_label_paths(base_dir):
+    result = dict()
+    for subdir in os.listdir(base_dir):
+        subdir_path = os.path.join(base_dir, subdir)
+        if os.path.isdir(subdir_path):
+            category_path = os.path.join(subdir_path, "malicious")
+            if os.path.exists(category_path):
+                for file in os.listdir(category_path):
+                    if file.endswith(".txt") and not file.startswith("._"):
+                        full_path = os.path.join(category_path, file)
+                        result[subdir] = full_path
     return result
 
 

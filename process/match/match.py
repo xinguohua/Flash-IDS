@@ -202,7 +202,6 @@ def reshape_and_split_tensor(tensor, n_splits):
 
 def find_important_nodes_and_edges(graph_edge_mask, edge_index):
     """计算最重要的节点和边"""
-
     # **计算节点的重要性（累加与该节点相连的边的分数）**
     num_nodes = edge_index.max().item() + 1  # 计算最大节点索引，确定节点数量
     node_importance = torch.zeros(num_nodes)

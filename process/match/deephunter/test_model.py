@@ -188,7 +188,6 @@ def test_model(G, communities, node_embeddings, edge_embeddings, model_path="sav
         )
         x, y = reshape_and_split_tensor(eval_pairs, 2)
         similarity = torch.sigmoid(scorer(x, y))
-        pair_auc = auc(similarity, labels)
         metrics_result = compute_metrics(similarity, labels)
         print("=== Evaluation Metrics ===")
         print(f"Accuracy:  {metrics_result['Acc']:.4f}")
@@ -197,6 +196,5 @@ def test_model(G, communities, node_embeddings, edge_embeddings, model_path="sav
         print(f"Precision: {metrics_result['Prec']:.4f}")
         print(f"Recall:    {metrics_result['Recall']:.4f}")
         print(f"FPR:       {metrics_result['FPR']:.4f}")
-        print(f"验证集平均AUC: {pair_auc}")
 
 

@@ -1,6 +1,5 @@
 import math
 import time
-
 import numpy as np
 import copy
 import torch
@@ -8,6 +7,31 @@ from process.match.dataset import FixedGraphEditDistanceDataset
 from process.match.evaluation import compute_similarity, auc, compute_metrics, eval_all_metrics
 from process.match.graphembeddingnetwork import GraphEncoder, GraphAggregator
 from process.match.graphmatchingnetwork import GraphMatchingNet
+from torch_geometric.nn import GNNExplainer
+
+def find_important_nodes_and_edges(graph_edge_mask, edge_index):
+    # **计算节点的重要性（累加与该节点相连的边的分数）**
+    num_nodes = edge_index.max().item() + 1  # 计算最大节点索引，确定节点数量
+    node_importance = torch.zeros(num_nodes)
+    for idx, importance in enumerate(graph_edge_mask.cpu().detach().numpy()):
+        src, dst = edge_index[:, idx]  # 获取边的两个端点
+        node_importance[src] += importance  # 源节点
+        node_importance[dst] += importance  # 目标节点
+
+    # **按重要性排序**
+    sorted_nodes = sorted(enumerate(node_importance.numpy()), key=lambda x: x[1], reverse=True)
+    sorted_edges = sorted(enumerate(graph_edge_mask.cpu().detach().numpy()), key=lambda x: x[1], reverse=True)
+
+    # **打印最重要的前 5 个节点**
+    print(" 最重要的节点（前 5）：")
+    for idx, importance in sorted_nodes[:5]:
+        print(f"节点 {idx} → 重要性: {importance:.4f}")
+
+    # **打印最重要的前 5 条边**
+    print(" 最重要的边（前 5）：")
+    for idx, importance in sorted_edges[:5]:
+        print(f"边 {edge_index[:, idx].tolist()} → 重要性: {importance:.4f}")
+
 
 def get_default_config():
     """The default configs."""
@@ -160,12 +184,13 @@ def test_model(G, communities, node_embeddings, edge_embeddings, model_path="sav
     validation_set = build_datasets(config, communities)
     print("[TIMER] build_datasets:", time.time() - start)
 
-    first_data_iter = validation_set.pairs(config['evaluation']['batch_size'], G, node_embeddings, edge_embeddings)
-    first_batch_graphs, _ = next(first_data_iter)
-    node_feature_dim = first_batch_graphs.node_features.shape[-1]
-    edge_feature_dim = first_batch_graphs.edge_features.shape[-1]
+    # first_data_iter = validation_set.pairs(config['evaluation']['batch_size'], G, node_embeddings, edge_embeddings)
+    # first_batch_graphs, _ = next(first_data_iter)
+    # node_feature_dim = first_batch_graphs.node_features.shape[-1]
+    # edge_feature_dim = first_batch_graphs.edge_features.shape[-1]
+    node_feature_dim = 30
+    edge_feature_dim = 30
     print("[TIMER] first_data_iter:", time.time() - start)
-
 
     model = build_model(config, node_feature_dim, edge_feature_dim)
     model.load_state_dict(torch.load(model_path, map_location=device))
@@ -207,5 +232,3 @@ def test_model(G, communities, node_embeddings, edge_embeddings, model_path="sav
     print(f"Precision: {avg_metrics['Prec']:.4f}")
     print(f"Recall:    {avg_metrics['Recall']:.4f}")
     print(f"FPR:       {avg_metrics['FPR']:.4f}")
-
-

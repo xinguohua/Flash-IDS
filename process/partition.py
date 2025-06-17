@@ -269,6 +269,17 @@ def detect_communities(G):
     print_communities(communities)
     return communities
 
+def detect_communities_with_id(G):
+    set_weight(G)
+    """使用 Modularity Method 执行 Leiden 社区检测"""
+    partition = la.find_partition(G, la.ModularityVertexPartition, weights='weight')
+    # 解析社区划分
+    communities = {i: [] for i in set(partition.membership)}
+    for node, community_id in enumerate(partition.membership):
+        communities[community_id].append(G.vs[node])
+    print_communities(communities)
+    return communities
+
 
 def set_default_weight(G, weight=1.0):
     """
