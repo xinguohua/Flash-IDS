@@ -179,7 +179,7 @@ def llm_select_neighbors(current_node, candidate_triples, current_path):
 
     # 调用大模型
     response = call_llm(template)
-    print(f"🧠 LLM选择邻居回复：{response}")
+    print(f"LLM选择邻居回复：{response}")
 
     # 尝试解析返回值为三元组列表
     try:
@@ -189,7 +189,7 @@ def llm_select_neighbors(current_node, candidate_triples, current_path):
             selected = [(int(s), r, int(o)) for s, r, o in selected]
             return selected
     except Exception as e:
-        print(f"⚠️ LLM返回无法解析，默认随机选：{e}")
+        print(f"LLM返回无法解析，默认随机选：{e}")
 
     # 如果 LLM 返回出错，随机 fallback
     select_k = 2
@@ -380,7 +380,21 @@ def reson_test_model(pair, node_embeddings, edge_embeddings, model_path="saved_m
     print("图的特征重要性:", feat_mask)
     print("图的边重要性:", edge_mask)
 
-    node_scores, edge_scores = find_important_nodes_and_edges(edge_mask, edge_index)
+    # 第2张图的节点索引
+    second_graph_nodes = (graph_idx == 1).nonzero(as_tuple=True)[0]
+    node_id_map = {old.item(): new for new, old in enumerate(second_graph_nodes)}
+    edge_mask_idx = []
+    for i, (src, dst) in enumerate(edge_index.t()):  # 遍历所有边
+        if src.item() in node_id_map and dst.item() in node_id_map:
+            edge_mask_idx.append(i)
+    edge_mask_idx = torch.tensor(edge_mask_idx, dtype=torch.long)
+    second_raw_graph_edge_index = edge_index[:, edge_mask_idx]
+    mapped_src = [node_id_map[src.item()] for src in second_raw_graph_edge_index[0]]
+    mapped_dst = [node_id_map[dst.item()] for dst in second_raw_graph_edge_index[1]]
+    second_graph_edge_index = torch.tensor([mapped_src, mapped_dst], dtype=torch.long)
+
+    second_graph_edge_mask = edge_mask[edge_mask_idx]
+    node_scores, edge_scores = find_important_nodes_and_edges(second_graph_edge_mask, second_graph_edge_index)
     # 按重要性得分倒序排列节点
     sorted_nodes = sorted(node_scores.items(), key=lambda x: x[1], reverse=True)
     # 取前 k 个重要节点
