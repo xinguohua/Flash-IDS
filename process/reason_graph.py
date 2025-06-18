@@ -107,7 +107,7 @@ def bfs_igraph_multi_start(G, start_vertices):
     :param select_k: 每个节点随机选择的邻居数量
     :return: 所有完整路径 (list)
     """
-    paths = {}  # 记录每个节点的完整路径
+    paths = {}  # 记录每个节点ID的完整路径
     final_paths = []  # 存放完整路径结果
 
     # BFS 初始化
@@ -120,7 +120,6 @@ def bfs_igraph_multi_start(G, start_vertices):
         queue.append(start)
         visited.add(start)
         paths[start] = [start]
-
     while queue:
         node = queue.popleft()
         neighbors_idx = set()
@@ -140,7 +139,7 @@ def bfs_igraph_multi_start(G, start_vertices):
                     neighbors_with_relation.append((node, relation, neighbor_idx))
                 except Exception as e:
                     print(f" 无法获取边 {node} -> {neighbor_idx}：{e}")
-            selected_neighbors = llm_select_neighbors(node, neighbors_with_relation, paths[node])
+            selected_neighbors = llm_select_neighbors(G, node, neighbors_with_relation, paths[node])
             print(
                 f"node {node} 随机选择后三元组 {selected_neighbors}")
             for src, relation, dst in selected_neighbors:
@@ -153,7 +152,7 @@ def bfs_igraph_multi_start(G, start_vertices):
         temp_path = "->".join(map(str, paths[node]))
         final_paths = [p for p in final_paths if not temp_path.startswith(p + "->")]
         final_paths.append(temp_path)
-        if llm_should_stop(final_paths):
+        if llm_should_stop(G, final_paths):
             print("LLM判定停止，BFS退出")
             break
 
@@ -161,7 +160,7 @@ def bfs_igraph_multi_start(G, start_vertices):
     return final_paths
 
 
-def llm_select_neighbors(current_node, candidate_triples, current_path):
+def llm_select_neighbors(G, current_node, candidate_triples, current_path, llm = False):
     """
     调用大模型 LLM 决策：从候选邻居三元组中选择要走的边
     :param current_node: 当前节点
@@ -169,37 +168,74 @@ def llm_select_neighbors(current_node, candidate_triples, current_path):
     :param current_path: 当前已走的路径（三元组路径）
     :return: LLM 选择的三元组列表
     """
-    # 格式化路径和候选边为字符串
-    triples_str = ", ".join([f"{s}-[{r}]->{o}" for s, r, o in candidate_triples])
+    if llm:
+        # 格式化路径和候选边为字符串
+        str_to_id_map = {}
+        triples_str_parts = []
 
-    template = (
-        f"当前节点为：{current_node}\n"
-        f"当前已走路径为：{current_path}\n"
-        f"候选三元组为：[{triples_str}]\n"
-        "请从候选三元组中选择你认为最优的（可选择多个），\n"
-        "直接返回 Python 列表格式，例如： [('A', 'rel1', 'B'), ('B', 'rel2', 'C')]。"
-    )
+        for s, r, o in candidate_triples:
+            s_prop = G.vs[s]["properties"]
+            o_prop = G.vs[o]["properties"]
+            triple_str = f"('{s_prop}', '{r}', '{o_prop}')"
+            triples_str_parts.append(triple_str)
+            str_to_id_map[(s_prop, r, o_prop)] = (s, r, o)
 
-    # 调用大模型
-    response = call_llm(template)
-    print(f"LLM选择邻居回复：{response}")
+        triples_str = ", ".join(triples_str_parts)
+        template = (
+            f"当前节点为：{current_node}\n"
+            f"当前已走路径为：{current_path}\n"
+            f"候选三元组为：[{triples_str}]\n"
+            "请从候选三元组中选择你认为最优的（可选择多个），\n"
+            "直接返回 Python 列表格式，例如： [('A', 'rel1', 'B'), ('B', 'rel2', 'C')]。"
+        )
 
-    # 尝试解析返回值为三元组列表
-    try:
-        selected = eval(response)
-        if isinstance(selected, list) and all(len(t) == 3 for t in selected):
-            # 转换 src 和 dst 为 int
-            selected = [(int(s), r, int(o)) for s, r, o in selected]
-            return selected
-    except Exception as e:
-        print(f"LLM返回无法解析，默认随机选：{e}")
+        # 调用大模型
+        response = call_llm(template)
+        print(f"LLM选择邻居回复：{response}")
 
-    # 如果 LLM 返回出错，随机 fallback
-    select_k = 2
-    return random.sample(candidate_triples, min(select_k, len(candidate_triples)))
+        # 尝试解析返回值为三元组列表
+        try:
+            selected = eval(response)
+            # 还原字符串三元组 → 原始 ID 三元组
+            selected_triples = []
+            for triple in selected:
+                if isinstance(triple, tuple) and len(triple) == 3:
+                    key = tuple(triple)
+                    if key in str_to_id_map:
+                        selected_triples.append(str_to_id_map[key])
+            if selected_triples:
+                return selected_triples
+        except Exception as e:
+            print(f"LLM返回无法解析或匹配失败，默认随机选：{e}")
+    else:
+        # 如果 LLM 返回出错，随机 fallback
+        select_k = 2
+        return random.sample(candidate_triples, min(select_k, len(candidate_triples)))
 
+def convert_path_ids_to_names(path_lines, G):
+    converted = []
+    nodeName = []
+    for line in path_lines:
+        parts = line.strip().split("->")
+        name_parts = []
+        try:
+            for i, part in enumerate(parts):
+                if i % 2 == 0:
+                    # 偶数位：节点 ID → 名字
+                    name_parts.append(G.vs[int(part)]["properties"])
+                    nodeName.append(G.vs[int(part)]['name'])
+                else:
+                    # 奇数位：边名，原样保留
+                    name_parts.append(part)
+            converted.append("->".join(name_parts))
+        except (ValueError, IndexError, KeyError) as e:
+            converted.append(f"[无效路径] {line}")
+    with open("node_names.txt", "w", encoding="utf-8") as f:
+        for name in nodeName:
+            f.write(name + "\n")
+    return converted
 
-def llm_should_stop(final_paths):
+def llm_should_stop(G, final_paths, llm = False):
     """
     调用大模型 LLM 判断：根据当前完整路径集合，决定是否停止BFS
     大模型会基于以下规则作答：
@@ -207,23 +243,31 @@ def llm_should_stop(final_paths):
     - 如果路径中包含关键节点 'J'，建议停止
     """
     # 动态拼接路径列表到 prompt 中
-    template = (
-        f"以下是当前完整路径集合：{final_paths}。\n"
-        "请判断：是否应该停止遍历？\n"
-        "规则：如果路径数量超过5条 或 路径中包含关键节点 'J'，或者单条路径长度超过5, 则建议停止。\n"
-        "请直接回答：是 或 否。"
-    )
+    final_paths_names = convert_path_ids_to_names(final_paths, G)
+    if llm:
+        template = (
+            f"以下是当前完整路径集合：{final_paths_names}。\n"
+            "请判断：是否应该停止遍历？\n"
+            "规则：如果路径数量超过5条 或 路径中包含关键节点 'J'，或者单条路径长度超过5, 则建议停止。\n"
+            "请直接回答：是 或 否。"
+        )
 
-    # 调用封装好的 LLM
-    response = call_llm(template)
-    print(f"final_paths: {final_paths} 大模型回复：{response}")
+        # 调用封装好的 LLM
+        response = call_llm(template)
+        print(f"final_paths: {final_paths} 大模型回复：{response}")
 
-    # 自动识别LLM回答
-    if "是" in response or "yes" in response.lower():
-        print("LLM判定：停止")
-        return True
+        # 自动识别LLM回答
+        if "是" in response or "yes" in response.lower():
+            print("LLM判定：停止")
+            return True
+        else:
+            print("LLM判定：继续搜索")
+            return False
     else:
-        print("LLM判定：继续搜索")
+        if len(final_paths) > 5:
+            print("路径总数 > 5，停止。")
+            return True
+        print("硬规则判定：继续搜索")
         return False
 
 def _pack_batch(graphs, node_embeddings, edge_embeddings):
@@ -407,3 +451,9 @@ def reson_test_model(pair, node_embeddings, edge_embeddings, model_path="saved_m
     print("\n最终完整路径:")
     for path in final_full_paths:
         print(path)
+    print("\n最终完整路径名称:")
+    converted = convert_path_ids_to_names(final_full_paths, pair[1])
+    for path in converted:
+        print(path)
+
+

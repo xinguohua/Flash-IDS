@@ -133,6 +133,5 @@ embedder.train()
 node_embeddings = embedder.embed_nodes()
 edge_embeddings = embedder.embed_edges()
 
-# TODO 结合匹配得到开始节点
 for pair in pair_list:
     reson_test_model(pair, node_embeddings, edge_embeddings)
