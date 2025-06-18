@@ -2,7 +2,7 @@ import igraph as ig
 import re
 import pandas as pd
 import json
-from .common import merge_properties, collect_json_paths, collect_label_paths
+from .common import collect_json_paths, collect_label_paths
 from .base import BaseProcessor
 from .type_enum import ObjectType
 from .common import merge_properties, collect_dot_paths,extract_properties,add_node_properties,get_or_add_node,add_edge_if_new,update_edge_index

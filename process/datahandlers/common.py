@@ -30,6 +30,18 @@ def collect_json_paths(base_dir):
                             result[subdir][category].append(full_path)
     return result
 
+def collect_atlas_label_paths(base_dir):
+    result = dict()
+    for subdir in os.listdir(base_dir):
+        subdir_path = os.path.join(base_dir, subdir)
+        if os.path.isdir(subdir_path):
+            for file in os.listdir(subdir_path):
+                if file.endswith(".txt"):
+                    full_path = os.path.join(subdir_path, file)
+                    name_only = os.path.splitext(file)[0]
+                    result[name_only] = full_path
+    return result
+
 def collect_label_paths(base_dir):
     result = dict()
     for subdir in os.listdir(base_dir):
@@ -53,7 +65,10 @@ def extract_properties(node_id, row, action, netobj2pro, subject2pro, file2pro):
     elif node_id in subject2pro:
         return subject2pro[node_id]
     else:
-        return [row.get('exec', ''), action] + ([row.get('path')] if row.get('path') else [])
+        return " ".join(
+            [row.get('exec', ''), action] + ([row.get('path')] if row.get('path') else [])
+        )
+        # return [row.get('exec', ''), action] + ([row.get('path')] if row.get('path') else [])
 
 def add_node_properties(nodes, node_id, properties):
     if node_id not in nodes:

@@ -116,8 +116,8 @@ def construct_test_graph_pair(G):
     return pair_list
 
 # 获取数据集
-# data_handler = get_handler("atlas")
-data_handler = get_handler("theia", False)
+data_handler = get_handler("atlas", False)
+# data_handler = get_handler("theia", False)
 # 加载数据
 data_handler.load()
 # 成整个大图+捕捉特征语料+简化策略这里添加

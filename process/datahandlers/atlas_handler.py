@@ -1,5 +1,7 @@
+import os.path
+
 from .common import merge_properties, collect_dot_paths, extract_properties, add_node_properties, get_or_add_node, \
-    add_edge_if_new, update_edge_index
+    add_edge_if_new, update_edge_index, collect_atlas_label_paths
 from .base import BaseProcessor
 import re
 import pandas as pd
@@ -12,6 +14,8 @@ class ATLASHandler(BaseProcessor):
     def load(self):
         print("处理 ATLAS 数据集...")
         graph_files = collect_dot_paths(self.base_path)
+        label_map = collect_atlas_label_paths(self.base_path)
+
         processed_data = []
         domain_name_set = {}
         ip_set = {}
@@ -19,9 +23,19 @@ class ATLASHandler(BaseProcessor):
         session_set = {}
         web_object_set = {}
         # 处理每个 .dot 文件
-        # TODO test
-        for dot_file in graph_files[:1]:
+        for dot_file in graph_files:
+            # TODO test
+            if "M1-CVE-2015-5122_windows_h1" not in dot_file :
+                continue
             print(f"正在处理文件: {dot_file}")
+            file_with_ext = os.path.basename(dot_file)
+            dot_name = os.path.splitext(file_with_ext)[0]
+            if self.train == False:
+                label_file = open(label_map[dot_name])
+                print(f"正在处理: 场景={dot_name}, label={label_file}")
+                self.all_labels.extend([
+                    line.strip() for line in label_file.read().splitlines() if line.strip()
+                ])
 
             # 读取节点数据
             netobj2pro, subject2pro, file2pro, domain_name_set, ip_set, connection_set, session_set, web_object_set = collect_nodes_from_log(
@@ -81,6 +95,11 @@ class ATLASHandler(BaseProcessor):
             # 点不重复添加
             actor_idx = get_or_add_node(G, actor_id, ObjectType[row['actor_type']].value, properties)
             object_idx = get_or_add_node(G, object_id, ObjectType[row['object']].value, properties)
+            # 标注label
+            print(f"actor_id{actor_id}")
+            print(f"object_id{object_id} value{int(object_id in self.all_labels)}")
+            G.vs[actor_idx]["label"] = int(actor_id in self.all_labels)
+            G.vs[object_idx]["label"] = int(object_id in self.all_labels)
             # 边也不重复添加
             add_edge_if_new(G, actor_idx, object_idx, action)
 
