@@ -127,15 +127,9 @@ def bfs_igraph_multi_start(G, start_vertices):
         for nbr_idx in G.neighbors(int(node), mode="ALL"):
             if nbr_idx not in visited and nbr_idx not in neighbors_idx:
                 neighbors_idx.add(nbr_idx)
-
-        if not neighbors_idx:
-            # 叶子节点，记录完整路径
-            final_paths.append("->".join(map(str, paths[node])))
-            # TODO：LLM选择 LLM的模版的最终确定
-            if llm_should_stop(final_paths):
-                print("LLM判定停止，BFS退出")
-                break
-        else:
+        print(f"node{node} have neighbors{neighbors_idx}")
+        # 探索
+        if neighbors_idx:
             # 随机选择 K 个邻居扩展
             # ✅ TODO: LLM 控制选择策略（示例：LLM 让你选或筛选 neighbor）随机选择 K 个邻居扩展
             neighbors_with_relation = []
@@ -148,11 +142,20 @@ def bfs_igraph_multi_start(G, start_vertices):
                     print(f" 无法获取边 {node} -> {neighbor_idx}：{e}")
             selected_neighbors = llm_select_neighbors(node, neighbors_with_relation, paths[node])
             print(
-                f"node {node} 随机选择, 选择前邻居 {neighbors_idx}，选择后三元组 {selected_neighbors}")
+                f"node {node} 随机选择后三元组 {selected_neighbors}")
             for src, relation, dst in selected_neighbors:
                 visited.add(dst)
                 queue.append(dst)
                 paths[dst] = paths[node] + [relation, dst]  # 累加三元组路径
+                print(f"探索的路径为 src: {src} dst: {dst}, path[dst]: {paths[dst]}")
+
+        # 终止判断
+        temp_path = "->".join(map(str, paths[node]))
+        final_paths = [p for p in final_paths if not temp_path.startswith(p + "->")]
+        final_paths.append(temp_path)
+        if llm_should_stop(final_paths):
+            print("LLM判定停止，BFS退出")
+            break
 
     print(f"\n最终完整路径集合: {final_paths}")
     return final_paths
@@ -207,13 +210,13 @@ def llm_should_stop(final_paths):
     template = (
         f"以下是当前完整路径集合：{final_paths}。\n"
         "请判断：是否应该停止遍历？\n"
-        "规则：如果路径数量超过3条 或 路径中包含关键节点 'J'，则建议停止。\n"
+        "规则：如果路径数量超过5条 或 路径中包含关键节点 'J'，或者单条路径长度超过5, 则建议停止。\n"
         "请直接回答：是 或 否。"
     )
 
     # 调用封装好的 LLM
     response = call_llm(template)
-    print("🧠 大模型回复：", response)
+    print(f"final_paths: {final_paths} 大模型回复：{response}")
 
     # 自动识别LLM回答
     if "是" in response or "yes" in response.lower():
