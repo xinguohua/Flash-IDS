@@ -2,7 +2,7 @@
 import os
 import pandas as pd
 import torch
-from process.make_graph import prepare_graph_new, collect_edges_from_log, \
+from process.match.deephunter.make_graph import prepare_graph_new, collect_edges_from_log, \
     collect_nodes_from_log
 from process.match.deephunter.test_model import test_model
 from process.model import EpochLogger, EpochSaver, infer

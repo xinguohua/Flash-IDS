@@ -9,21 +9,6 @@ from gensim.models import Word2Vec
 import numpy as np
 from gensim.models.callbacks import CallbackAny2Vec
 
-class GCN(torch.nn.Module):
-    def __init__(self,in_channel,out_channel):
-        super().__init__()
-        self.conv1 = SAGEConv(in_channel, 32, normalize=True)
-        self.conv2 = SAGEConv(32, out_channel, normalize=True)
-
-    def forward(self, x, edge_index):
-        x = self.conv1(x, edge_index)
-        x = x.relu()
-        x = F.dropout(x, p=0.5, training=self.training)
-
-        x = self.conv2(x, edge_index)
-        return x
-
-
 class PositionalEncoder:
 
     def __init__(self, d_model, max_len=100000):
@@ -57,16 +42,6 @@ class EpochLogger(CallbackAny2Vec):
     def on_epoch_end(self, model):
         print("Epoch #{} end".format(self.epoch))
         self.epoch += 1
-
-def visualize(h, color):
-    z = TSNE(n_components=2).fit_transform(h.detach().cpu().numpy())
-
-    plt.figure(figsize=(10,10))
-    plt.xticks([])
-    plt.yticks([])
-
-    plt.scatter(z[:, 0], z[:, 1], s=70, c=color, cmap="Set2")
-    plt.show()
 
 def infer(document, path):
     encoder = PositionalEncoder(30)

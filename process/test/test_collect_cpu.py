@@ -50,7 +50,8 @@ def run_xxx_with_cpu_monitor():
     try:
         # 修改此行代码为你实际的 xxx训练或预测命令
         command = "python test.py"
-        subprocess.run(command, shell=True, check=True)  # 执行命令
+        working_dir = "../"
+        subprocess.run(command, shell=True, check=True, cwd=working_dir)  # 执行命令
     except subprocess.CalledProcessError as e:
         print(f"Error occurred while running xxx: {e}")
 

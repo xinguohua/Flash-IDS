@@ -47,8 +47,9 @@ def run_xxx_with_memory_monitor():
     # 执行 python xxx.py训练或预测代码
     try:
         # 修改此行代码为你实际的 xxx训练或预测命令
-        command = "python process/test.py"
-        subprocess.run(command, shell=True, check=True)  #
+        command = "python test.py"
+        working_dir = "../"
+        subprocess.run(command, shell=True, check=True, cwd=working_dir)  # 执行命令
     except subprocess.CalledProcessError as e:
         print(f"Error occurred while running xxx: {e}")
 
