@@ -31,6 +31,7 @@ def plot_memory_usage(times, memory_usage):
     plt.ylabel('Memory Usage (MB)')
     plt.title('Memory Usage over Time')
     plt.grid(True)
+    plt.savefig("memory_pig")  # 保存图像
     plt.show()
 
 if __name__ == "__main__":

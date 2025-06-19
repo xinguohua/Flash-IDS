@@ -30,6 +30,7 @@ def plot_cpu_usage(times, cpu_percentages):
     plt.xlabel('Time (seconds)')
     plt.ylabel('CPU Usage (%)')
     plt.title('CPU Usage over Time')
+    plt.savefig("cpu_pig")
     plt.grid(True)
     plt.show()
 
