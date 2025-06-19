@@ -7,7 +7,7 @@ import psutil
 
 # 定义一个类来收集 CPU 使用率
 class CPUMonitor:
-    def __init__(self, interval=1, output_file="cpu_usage_log.json"):  #此处更改收集CPU的间隔时间(默认单位为秒)，更改输出json文件的名字
+    def __init__(self, interval=5, output_file="cpu_usage_log.json"):  #此处更改收集CPU的间隔时间(默认单位为秒)，更改输出json文件的名字
         self.interval = interval  # 采样间隔
         self.output_file = output_file
         self.cpu_usage = []
@@ -31,14 +31,13 @@ class CPUMonitor:
 
     # 启动 CPU 监控线程的函数
     def start_monitoring(self):
-        self.monitoring = True  # 开始监控
-        monitor_thread = threading.Thread(target=self.collect_cpu_usage)
-        monitor_thread.daemon = True  # 允许主程序退出时，后台线程自动退出
-        monitor_thread.start()
+        self.monitoring = True
+        self.thread = threading.Thread(target=self.collect_cpu_usage)
+        self.thread.start()  # 不设置 daemon
 
-    # 停止监控
     def stop_monitoring(self):
         self.monitoring = False
+        self.thread.join()  # 等待线程安全退出
 
 # 对开启的代码启动CPU监控的函数
 def run_xxx_with_cpu_monitor():

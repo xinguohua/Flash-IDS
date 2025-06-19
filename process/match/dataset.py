@@ -381,12 +381,18 @@ class FixedGraphEditDistanceDataset(GraphEditDistanceDataset):
             # get a fixed set of pairs first
             with reset_random_state(self._seed):
                 community_list = list(self._communities.values())
-                num_pairs = self._dataset_size * 2
-                labels = np.array([1 if i % 2 == 0 else -1 for i in range(num_pairs)], dtype=np.int32)
-                pairs = [
-                    self._get_pair(label == 1, community_list, i, G)
-                    for i, label in enumerate(labels)
-                ]
+                pairs = []
+                labels = []
+                positive = True
+                idx = 0
+                for _ in range(self._dataset_size):
+                    pairs.append(self._get_pair(positive, community_list, idx, G))
+                    idx += 1
+                    if idx == len(community_list):
+                        idx = 0
+                    labels.append(1 if positive else -1)
+                    positive = not positive
+            labels = np.array(labels, dtype=np.int32)
             self._pairs = pairs
             self._labels = labels
 
