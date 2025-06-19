@@ -1,3 +1,5 @@
+import os
+
 import igraph as ig
 import re
 import pandas as pd
@@ -30,7 +32,7 @@ class DARPAHandler(BaseProcessor):
                 print(f"正在处理: 场景={scene}, 类别={category}, 文件={json_files}")
                 scene_category = f"/{scene}_{category}.txt"
                 f = open(self.base_path + scene_category)
-
+                self.total_loaded_bytes += os.path.getsize(self.base_path + scene_category)
                 # 训练分隔
                 data = f.read().split('\n')
                 # TODO:

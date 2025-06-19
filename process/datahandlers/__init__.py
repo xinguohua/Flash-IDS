@@ -11,11 +11,11 @@ handler_map = {
     "atlas": ATLASHandler}
 
 path_map = {
-    "theia": "../data_files/theia",
-    "cadets": "../data_files/cadets",
-    "clearscope": "../data_files/clearscope",
-    "trace": "../data_files/trace",
-    "atlas": "../atlas_data",
+    "theia": "/home/nsas2020/fuzz/Flash-IDS/data_files/theia",
+    "cadets": "/home/nsas2020/fuzz/Flash-IDS/data_files/cadets",
+    "clearscope": "/home/nsas2020/fuzz/Flash-IDS/data_files/clearscope",
+    "trace": "/home/nsas2020/fuzz/Flash-IDS/data_files/trace",
+    "atlas": "/home/nsas2020/fuzz/Flash-IDS/atlas_data",
 }
 
 def get_handler(name, train):

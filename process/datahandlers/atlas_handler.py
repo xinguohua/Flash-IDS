@@ -27,6 +27,7 @@ class ATLASHandler(BaseProcessor):
             # TODO test
             if "M1-CVE-2015-5122_windows_h1" not in dot_file :
                 continue
+            self.total_loaded_bytes += os.path.getsize(dot_file)
             print(f"正在处理文件: {dot_file}")
             file_with_ext = os.path.basename(dot_file)
             dot_name = os.path.splitext(file_with_ext)[0]

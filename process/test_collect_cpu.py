@@ -1,9 +1,9 @@
-import psutil
-import time
 import json
-import os
 import subprocess
 import threading
+import time
+import psutil
+
 
 # 定义一个类来收集 CPU 使用率
 class CPUMonitor:
@@ -49,7 +49,7 @@ def run_xxx_with_cpu_monitor():
     # 执行 xxx 训练或预测代码
     try:
         # 修改此行代码为你实际的 xxx训练或预测命令
-        command = "python process/test.py"
+        command = "python test.py"
         subprocess.run(command, shell=True, check=True)  # 执行命令
     except subprocess.CalledProcessError as e:
         print(f"Error occurred while running xxx: {e}")

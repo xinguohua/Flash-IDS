@@ -10,6 +10,7 @@ class BaseProcessor(ABC):
         self.all_file2pro = {}  # 文件 UUID → 属性字符串
         self.use_df = []
         self.all_labels = []
+        self.total_loaded_bytes = 0
 
     @abstractmethod
     def load(self):
