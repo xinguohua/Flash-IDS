@@ -45,7 +45,7 @@ def test_community_node(communities, ground_truths, predictions):
     fpr = fp / (fp + tn + 1e-10)  # 加上一个小 epsilon 防止除0
 
     attack_coverage = tp / len(ground_truths)
-    workload_reduction = 1 - ((tp + fp) / (total + 1e-10))
+    workload_reduction = (tp) / (tp + fp + 1e-10)
     print("\n📊评估结果：")
     print(f"✅ Accuracy:  {acc:.4f}")
     print(f"✅ Precision: {prec:.4f}")
