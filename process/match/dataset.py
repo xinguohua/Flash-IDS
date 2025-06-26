@@ -82,16 +82,6 @@ def substitute_random_edges_ig(G, G_add, positive, ratio=0.1):
     n_nodes = G.vcount()  # 获取节点数
     edges = G.get_edgelist()  # 获取所有边的列表
 
-    # # 如果图的节点数小于 2，无法替换边，直接返回原图
-    # if n_nodes < 2:
-    #     print(f"[警告] 图的节点数不足 ({n_nodes})，无法替换边，直接返回原图。")
-    #     return G
-    #
-    # # 如果要替换的边比图中的边还多，直接返回
-    # if len(edges) < n:
-    #     print(f"[警告] 需要替换 {n} 条边，但图中只有 {len(edges)} 条边，直接返回原图。")
-    #     return G
-
     ############################操作边#################################################
     # 1、随机选择 `n` 条边进行删除
     total_edges = len(edges)
@@ -102,11 +92,14 @@ def substitute_random_edges_ig(G, G_add, positive, ratio=0.1):
     edge_set = set(map(tuple, edges))  # 转换为集合，方便查重
 
     # 2、随机生成 `n_changes_edges` 条新边，确保新边不重复且不和删除的边相同
+    max_attempts = 1000
+    attempts = 0
     e_add = set()
-    while len(e_add) < n_changes_edges:
-        e = tuple(np.random.choice(n_nodes, 2, replace=False))  # 生成 (src, dst)
-        if e not in edge_set and e not in e_remove and e not in e_add:  # 确保新边不重复且与删除的边不同
+    while len(e_add) < n_changes_edges and attempts < max_attempts:
+        e = tuple(np.random.choice(n_nodes, 2, replace=False))
+        if e not in edge_set and e not in e_remove and e not in e_add:
             e_add.add(e)
+        attempts += 1
 
     # 3、执行删除和添加
     G.delete_edges(e_remove)  # 删除选定的 `n` 条边
@@ -203,13 +196,10 @@ class GraphEditDistanceDataset(GraphSimilarityDataset):
             next = idx + 1
         changed_community_nodes = communities_list[next]
         g_add = G.subgraph(changed_community_nodes)
-
         # 根据 `positive` 选择边的修改数量
         n_changes = self._k_pos if positive else self._k_neg
-
         # 对子图 `g` 进行边修改
         changed_g = substitute_random_edges_ig(g, g_add, positive, n_changes)
-
         return g, changed_g
 
     def _pairs(self, batch_size, G, node_embeddings, edge_embeddings):
@@ -224,8 +214,11 @@ class GraphEditDistanceDataset(GraphSimilarityDataset):
             for _ in range(batch_size):
                 if idx + 1 >= len(community_list):
                     idx = 0  # 重头开始
-
-                g1, g2 = self._get_pair(positive, community_list, idx, G)
+                try:
+                    g1, g2 = self._get_pair(positive, community_list, idx, G)
+                except Exception as e:
+                    print(f"[错误] 获取图对失败，跳过当前样本: {e}")
+                    continue  # 或者你也可以记录一下失败次数
                 batch_graphs.append((g1, g2))
                 batch_labels.append(1 if positive else -1)
                 positive = not positive
@@ -379,19 +372,18 @@ class FixedGraphEditDistanceDataset(GraphEditDistanceDataset):
             labels = self._labels
         else:
             # get a fixed set of pairs first
-            with reset_random_state(self._seed):
-                community_list = list(self._communities.values())
-                pairs = []
-                labels = []
-                positive = True
-                idx = 0
-                for _ in range(self._dataset_size):
-                    pairs.append(self._get_pair(positive, community_list, idx, G))
-                    idx += 1
-                    if idx == len(community_list):
-                        idx = 0
-                    labels.append(1 if positive else -1)
-                    positive = not positive
+            community_list = list(self._communities.values())
+            pairs = []
+            labels = []
+            positive = True
+            idx = 0
+            for _ in range(self._dataset_size):
+                pairs.append(self._get_pair(positive, community_list, idx, G))
+                idx += 1
+                if idx == len(community_list):
+                    idx = 0
+                labels.append(1 if positive else -1)
+                positive = not positive
             labels = np.array(labels, dtype=np.int32)
             self._pairs = pairs
             self._labels = labels
