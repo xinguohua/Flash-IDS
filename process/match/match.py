@@ -237,7 +237,6 @@ def train_model(G, communities, node_embeddings, edge_embeddings):
     # 初始化模型
     node_feature_dim = first_batch_graphs.node_features.shape[-1]
     edge_feature_dim = first_batch_graphs.edge_features.shape[-1]
-    # 模型得改下
     model, optimizer = build_model(config, node_feature_dim, edge_feature_dim)
     model.to(device)
 
