@@ -1,8 +1,7 @@
+import numpy as np
 from gensim.models import Word2Vec
 from .base import GraphEmbedderBase
-import numpy as np
 
-import numpy as np
 
 def graph_to_triples(G, features, mapp):
     """
@@ -11,17 +10,14 @@ def graph_to_triples(G, features, mapp):
     :return: list of triples (head, relation, tail)
     """
     triples = []
-
     for edge in G.es:
         head_id = edge.source  # 获取起点 ID
         tail_id = edge.target  # 获取终点 ID
         relation = edge['actions'] if 'actions' in edge.attributes() else "undefined_relation"  # 关系属性
 
-        # 获取实体的 name（如果有）
         head = str(features[mapp.index(G.vs[head_id]['name'])])
         tail = str(features[mapp.index(G.vs[tail_id]['name'])])
         triples.append([head, relation, tail])
-
     return triples
 
 class Word2VecEmbedder(GraphEmbedderBase):
@@ -39,7 +35,7 @@ class Word2VecEmbedder(GraphEmbedderBase):
             name = v["name"]
             try:
                 phrase = self.features[self.mapp.index(name)]
-                emb = self.model.wv.infer_vector(phrase)
+                emb = self.model.wv[str(phrase)]
             except Exception:
                 emb = np.zeros(30)
             node_embeddings[name] = emb

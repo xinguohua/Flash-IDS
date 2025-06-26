@@ -29,5 +29,3 @@ edge_embeddings = embedder.embed_edges()
 # 模型训练
 # 匹配
 train_model(G, communities, node_embeddings, edge_embeddings)
-
-# TODO：推理
