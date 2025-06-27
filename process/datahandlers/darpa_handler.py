@@ -1,13 +1,15 @@
+import json
 import os
+import re
 
 import igraph as ig
-import re
 import pandas as pd
-import json
-from .common import collect_json_paths, collect_label_paths
+
 from .base import BaseProcessor
+from .common import collect_json_paths, collect_label_paths
+from .common import merge_properties, add_node_properties, get_or_add_node, add_edge_if_new, \
+    update_edge_index
 from .type_enum import ObjectType
-from .common import merge_properties, collect_dot_paths,extract_properties,add_node_properties,get_or_add_node,add_edge_if_new,update_edge_index
 
 
 class DARPAHandler(BaseProcessor):
@@ -235,3 +237,15 @@ def collect_edges_from_log(d, paths):
 
     return d.merge(rdf, how='inner', on=['actorID', 'objectID', 'action', 'timestamp']).drop_duplicates()
 
+
+def extract_properties(node_id, row, action, netobj2pro, subject2pro, file2pro):
+    if node_id in netobj2pro:
+        return netobj2pro[node_id]
+    elif node_id in file2pro:
+        return file2pro[node_id]
+    elif node_id in subject2pro:
+        return subject2pro[node_id]
+    else:
+        return " ".join(
+            [row.get('exec', ''), action] + ([row.get('path')] if row.get('path') else [])
+        )

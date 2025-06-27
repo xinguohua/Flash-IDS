@@ -287,7 +287,7 @@ def train_model(G, communities, node_embeddings, edge_embeddings):
 
         # 反向传播 & 更新参数
         optimizer.zero_grad()
-        loss.backward(torch.ones_like(loss))  #
+        loss.backward(torch.ones_like(loss))
         nn.utils.clip_grad_value_(model.parameters(), config['training']['clip_value'])
         optimizer.step()
 

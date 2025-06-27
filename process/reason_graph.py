@@ -130,7 +130,6 @@ def bfs_igraph_multi_start(G, start_vertices):
         # 探索
         if neighbors_idx:
             # 随机选择 K 个邻居扩展
-            # ✅ TODO: LLM 控制选择策略（示例：LLM 让你选或筛选 neighbor）随机选择 K 个邻居扩展
             neighbors_with_relation = []
             for neighbor_idx in neighbors_idx:
                 try:

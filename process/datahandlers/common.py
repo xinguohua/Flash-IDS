@@ -57,18 +57,6 @@ def collect_label_paths(base_dir):
 
 
 # =================处理特征成图=========================
-def extract_properties(node_id, row, action, netobj2pro, subject2pro, file2pro):
-    if node_id in netobj2pro:
-        return netobj2pro[node_id]
-    elif node_id in file2pro:
-        return file2pro[node_id]
-    elif node_id in subject2pro:
-        return subject2pro[node_id]
-    else:
-        return " ".join(
-            [row.get('exec', ''), action] + ([row.get('path')] if row.get('path') else [])
-        )
-
 def add_node_properties(nodes, node_id, properties):
     if node_id not in nodes:
         nodes[node_id] = []

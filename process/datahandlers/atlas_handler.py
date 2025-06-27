@@ -1,6 +1,6 @@
 import os.path
 
-from .common import merge_properties, collect_dot_paths, extract_properties, add_node_properties, get_or_add_node, \
+from .common import merge_properties, collect_dot_paths, add_node_properties, get_or_add_node, \
     add_edge_if_new, update_edge_index, collect_atlas_label_paths
 from .base import BaseProcessor
 import re
@@ -25,7 +25,7 @@ class ATLASHandler(BaseProcessor):
         # 处理每个 .dot 文件
         for dot_file in graph_files:
             # TODO test
-            if "M1-CVE-2015-5122_windows_h1" not in dot_file :
+            if "M1-CVE-2015-5122_windows_h1" not in dot_file:
                 continue
             self.total_loaded_bytes += os.path.getsize(dot_file)
             print(f"正在处理文件: {dot_file}")
@@ -80,7 +80,8 @@ class ATLASHandler(BaseProcessor):
             action = row["action"]
 
             actor_id = row["actorID"]
-            properties = extract_properties(actor_id, row, row["action"], self.all_netobj2pro, self.all_subject2pro, self.all_file2pro)
+            properties = extract_properties(actor_id, row, row["action"], self.all_netobj2pro, self.all_subject2pro,
+                                            self.all_file2pro)
             add_node_properties(nodes, actor_id, properties)
 
             object_id = row["objectID"]
@@ -248,3 +249,14 @@ def collect_edges_from_log(paths, domain_name_set, ip_set, connection_set, sessi
             edges.append((source, source_type, target, target_type, edge_type, int(ts)))
 
     return pd.DataFrame(edges, columns=["actorID", "actor_type", "objectID", "object", "action", "timestamp"])
+
+
+def extract_properties(node_id, row, action, netobj2pro, subject2pro, file2pro):
+    if node_id in netobj2pro:
+        return netobj2pro[node_id]
+    elif node_id in file2pro:
+        return file2pro[node_id]
+    elif node_id in subject2pro:
+        return subject2pro[node_id]
+    else:
+        return node_id
