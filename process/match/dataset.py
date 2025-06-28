@@ -186,12 +186,12 @@ class GraphEditDistanceDataset(GraphSimilarityDataset):
         """
         # 从 `communities` 里选一个社区
         if idx > len(communities_list)-1 :
-            idx = 0  # 可选：循环利用
+            idx = idx % len(communities_list)  # 可选：循环利用
         community_nodes = communities_list[idx]
         g = G.subgraph(community_nodes)
 
         if idx +1  > len(communities_list)-1 :
-            next = 0
+            next = idx % len(communities_list)
         else:
             next = idx + 1
         changed_community_nodes = communities_list[next]
@@ -213,7 +213,7 @@ class GraphEditDistanceDataset(GraphSimilarityDataset):
             positive = True
             for _ in range(batch_size):
                 if idx + 1 >= len(community_list):
-                    idx = 0  # 重头开始
+                    idx = idx % len(community_list)  # 重头开始
                 try:
                     g1, g2 = self._get_pair(positive, community_list, idx, G)
                 except Exception as e:
