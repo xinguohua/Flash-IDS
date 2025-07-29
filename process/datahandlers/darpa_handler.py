@@ -105,8 +105,8 @@ class DARPAHandler(BaseProcessor):
             actor_idx = get_or_add_node(G, actor_id, ObjectType[row['actor_type']].value, properties)
             object_idx = get_or_add_node(G, object_id, ObjectType[row['object']].value, properties)
             # 标注label
-            print(f"actor_id{actor_id}")
-            print(f"object_id{object_id} value{int(object_id in self.all_labels)}")
+            # print(f"actor_id{actor_id}")
+            # print(f"object_id{object_id} value{int(object_id in self.all_labels)}")
             G.vs[actor_idx]["label"] = int(actor_id in self.all_labels)
             G.vs[object_idx]["label"] = int(object_id in self.all_labels)
             # 边也不重复添加
