@@ -65,10 +65,10 @@ def create_process_graph():
 def set_weight(G):
     # 设置默认权重
     set_default_weight(G)
-    # 设置进程-进程权重
-    set_process_weights(G)
-    # # 设置进程-资源权重
-    set_resource_weights(G)
+    # # 设置进程-进程权重
+    # set_process_weights(G)
+    # # # 设置进程-资源权重
+    # set_resource_weights(G)
 
 
 def is_resource_dependent(G, source, target):
