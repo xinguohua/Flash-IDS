@@ -30,6 +30,9 @@ class DARPAHandler(BaseProcessor):
                 #  训练只处理良性类别
                 if self.train and category != "benign":
                     continue
+                #  测试只处理恶意类别
+                if self.train != True and category == "benign":
+                    continue
 
                 print(f"正在处理: 场景={scene}, 类别={category}, 文件={json_files}")
                 scene_category = f"/{scene}_{category}.txt"
@@ -38,9 +41,9 @@ class DARPAHandler(BaseProcessor):
                 # 训练分隔
                 data = f.read().split('\n')
                 # TODO:
-                # data = [line.split('\t') for line in data]
+                data = [line.split('\t') for line in data]
                 # for test
-                data = [line.split('\t') for line in data[:10000]]
+                # data = [line.split('\t') for line in data[:10000]]
                 df = pd.DataFrame(data, columns=['actorID', 'actor_type', 'objectID', 'object', 'action', 'timestamp'])
                 df = df.dropna()
                 df.sort_values(by='timestamp', ascending=True, inplace=True)
@@ -185,8 +188,8 @@ def collect_edges_from_log(d, paths):
         with open(p) as f:
             # TODO
             # for test: 只取每个文件前300条包含"EVENT"的
-            data = [json.loads(x) for i, x in enumerate(f) if "EVENT" in x and i < 10000]
-            # data = [json.loads(x) for i, x in enumerate(f) if "EVENT" in x ]
+            # data = [json.loads(x) for i, x in enumerate(f) if "EVENT" in x and i < 10000]
+            data = [json.loads(x) for i, x in enumerate(f) if "EVENT" in x ]
         for x in data:
             try:
                 action = x['datum']['com.bbn.tc.schema.avro.cdm18.Event']['type']
