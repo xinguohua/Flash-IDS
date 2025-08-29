@@ -31,24 +31,25 @@ https://github.com/FiveDirections/OpTC-data
 ```
 
 ## Code Structure
-/
-├── atlas_data/           # Stores Atlas-related data files
-├── data_files/           # Stores other data files
-├── process/              # Core logic and scripts (data processing, model training, reasoning)
-│   ├── datahandlers/     # Data loading and preprocessing modules
-│   ├── embedders/        # Embedding generation modules
-│   ├── match/            # Matching and comparison logic
-│   ├── test/             # Test scripts and cases
-│   ├── partition.py      # Data partitioning and splitting
-│   ├── process_data.py   # Process raw data into usable format
-│   ├── reason_graph.py   # Graph-based reasoning
-│   ├── reasoning.py      # General reasoning logic
-│   ├── test.py           # Test runner
+```
+/                           # Root directory
+├── atlas_data/             # Stores Atlas-related data files
+├── data_files/             # Stores other data files
+├── process/                # Core logic and scripts (data processing, model training, reasoning)
+│   ├── process_data.py     # Process raw data into usable format
+│   ├── datahandlers/       # Data loading and preprocessing modules
+│   ├── embedders/          # Embedding generation modules
+│   ├── match/              # Matching and comparison logic
+│   ├── test/               # Test scripts and cases
+│   ├── partition.py        # Data partitioning and splitting
+│   ├── reason_graph.py     # Graph-based reasoning
+│   ├── reasoning.py        # General reasoning logic
+│   ├── test.py             # Test runner
 │   ├── test_local_chatgpt.py # Local ChatGPT testing script
-│   ├── train.py          # Model training script
-│   ├── type_enum.py      # Enum definitions for types
-├── README.md             # Project documentation
-└── requirements.txt      # Python dependencies list
-
+│   ├── train.py            # Model training script
+│   └── type_enum.py        # Enum definitions for types
+├── README.md               # Project documentation
+└── requirements.txt        # Python dependencies list
+```
 
 
