@@ -39,7 +39,6 @@ https://github.com/FiveDirections/OpTC-data
 │   ├── embedders/        # Embedding generation modules
 │   ├── match/            # Matching and comparison logic
 │   ├── test/             # Test scripts and cases
-│   ├── model.py          # Model architecture definition
 │   ├── partition.py      # Data partitioning and splitting
 │   ├── process_data.py   # Process raw data into usable format
 │   ├── reason_graph.py   # Graph-based reasoning
