@@ -15,9 +15,9 @@ def show(file_path):
     print(f"Processing {file_path}")
 
 def extract_edge_info(line):
-    pattern_src = re.compile(r'subject\":{\"com.bbn.tc.schema.avro.cdm18.UUID\":\"(.*?)\"}')
-    pattern_dst1 = re.compile(r'predicateObject\":{\"com.bbn.tc.schema.avro.cdm18.UUID\":\"(.*?)\"}')
-    pattern_dst2 = re.compile(r'predicateObject2\":{\"com.bbn.tc.schema.avro.cdm18.UUID\":\"(.*?)\"}')
+    pattern_src = re.compile(r'subject\":{\"com.bbn.tc.schema.avro.cdm20.UUID\":\"(.*?)\"}')
+    pattern_dst1 = re.compile(r'predicateObject\":{\"com.bbn.tc.schema.avro.cdm20.UUID\":\"(.*?)\"}')
+    pattern_dst2 = re.compile(r'predicateObject2\":{\"com.bbn.tc.schema.avro.cdm20.UUID\":\"(.*?)\"}')
     pattern_type = re.compile(r'type\":\"(.*?)\"')
     pattern_time = re.compile(r'timestampNanos\":(.*?),')
 
@@ -57,29 +57,29 @@ def process_data(file_path):
             if cnt % notice_num == 0:
                 print(f"processing node {cnt}")
 
-            if 'com.bbn.tc.schema.avro.cdm18.Event' in line or 'com.bbn.tc.schema.avro.cdm18.Host' in line:
+            if 'com.bbn.tc.schema.avro.cdm20.Event' in line or 'com.bbn.tc.schema.avro.cdm20.Host' in line:
                 continue
 
-            if 'com.bbn.tc.schema.avro.cdm18.TimeMarker' in line or 'com.bbn.tc.schema.avro.cdm18.StartMarker' in line:
+            if 'com.bbn.tc.schema.avro.cdm20.TimeMarker' in line:
                 continue
 
-            if 'com.bbn.tc.schema.avro.cdm18.UnitDependency' in line or 'com.bbn.tc.schema.avro.cdm18.EndMarker' in line:
+            if 'com.bbn.tc.schema.avro.cdm20.UnitDependency' in line or 'com.bbn.tc.schema.avro.cdm20.EndMarker' in line:
                 continue
 
-            if 'com.bbn.tc.schema.avro.cdm18.ProvenanceTagNode' in line:
+            if 'com.bbn.tc.schema.avro.cdm20.ProvenanceTagNode' in line:
                 continue
 
             uuid = extract_uuid(line)[0]
             subject_type = extract_subject_type(line)
 
             if len(subject_type) < 1:
-                if 'com.bbn.tc.schema.avro.cdm18.MemoryObject' in line:
+                if 'com.bbn.tc.schema.avro.cdm20.MemoryObject' in line:
                     id_nodetype_map[uuid] = 'MemoryObject'
                     continue
-                if 'com.bbn.tc.schema.avro.cdm18.NetFlowObject' in line:
+                if 'com.bbn.tc.schema.avro.cdm20.NetFlowObject' in line:
                     id_nodetype_map[uuid] = 'NetFlowObject'
                     continue
-                if 'com.bbn.tc.schema.avro.cdm18.UnnamedPipeObject' in line:
+                if 'com.bbn.tc.schema.avro.cdm20.UnnamedPipeObject' in line:
                     id_nodetype_map[uuid] = 'UnnamedPipeObject'
                     continue
 
@@ -98,7 +98,7 @@ def process_edges_and_count(file_path, id_nodetype_map, output_path):
             if cnt % notice_num == 0:
                 print(f"process_edges {cnt}")
 
-            if 'com.bbn.tc.schema.avro.cdm18.Event' in line:
+            if 'com.bbn.tc.schema.avro.cdm20.Event' in line:
                 src_id, edge_type, timestamp, dst_id1, dst_id2 = extract_edge_info(line)
 
                 if src_id is None or src_id not in id_nodetype_map:
@@ -138,10 +138,8 @@ def collect_json_paths(base_dir):
 
 def run_data_processing():
     # 更换数据集
-    # base_path = "../data_files/process"
-    # base_path = "../data_files/trace"
-    # base_path = "../data_files/cadets"
-    base_path = "../data_files/clearscope"
+    base_path = "../../data_files5/cadets"
+    # base_path = "../../data_files5/theia"
 
     json_map = collect_json_paths(base_path)
     # 统计良性（benign）和恶意（malicious）的节点数和边数
