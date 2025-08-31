@@ -149,7 +149,7 @@ def collect_json_paths(base_dir):
 
 
 def run_data_processing():
-    base_path = r"../../data_files_optc"
+    base_path = r"../../data_files_optc/day1"
     json_map = collect_json_paths(base_path)
 
     statistics = {"total_nodes": 0, "total_edges": 0}
@@ -159,8 +159,8 @@ def run_data_processing():
     for scene, data in json_map.items():
         for category in data.keys():
             for original_path in data.get(category, []):
-                filtered_path = filter_json_by_hostname_and_time(original_path, keyword="SysClient0201")
-                all_filtered_paths.append(filtered_path)
+                # filtered_path = filter_json_by_hostname_and_time(original_path, keyword="SysClient0201")
+                all_filtered_paths.append(original_path)
     print("\nStage 1 Complete. All filtered JSON files have been generated.")
 
     print("\n========= Stage 2: Building Individual Graphs from Each Filtered File =========")
@@ -174,12 +174,10 @@ def run_data_processing():
     print(f"Combined node map built. Total unique nodes in filtered data: {statistics['total_nodes']}")
 
     for filtered_path in all_filtered_paths:
-
         dir_name = os.path.dirname(filtered_path)
         base_name = os.path.basename(filtered_path)
         name, _ext = os.path.splitext(base_name)
         output_txt_path = os.path.join(dir_name, f"{name}.txt")
-
         print(f"\n--- Processing: {filtered_path} -> {output_txt_path} ---")
 
         with open(output_txt_path, 'w', encoding='utf-8') as f:
