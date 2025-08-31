@@ -138,10 +138,10 @@ def collect_json_paths(base_dir):
 
 def run_data_processing():
     # 更换数据集
-    # base_path = "../data_files/process"
-    # base_path = "../data_files/trace"
-    # base_path = "../data_files/cadets"
-    base_path = "../data_files/clearscope"
+    # base_path = "../../data_files/process"
+    # base_path = "../../data_files/trace"
+    # base_path = "../../data_files/cadets"
+    base_path = "../../data_files/clearscope"
 
     json_map = collect_json_paths(base_path)
     # 统计良性（benign）和恶意（malicious）的节点数和边数
