@@ -39,7 +39,7 @@ https://github.com/FiveDirections/OpTC-data
 ├── data_files_optc/        # Stores optc data files
 ├── process/                # Core logic and scripts (data processing, model training, reasoning)
 │   ├── preprocess/          # Data preprocessing scripts and utilities
-│   │   ├── process_data.py      # General data preprocessing for E3 data
+│   │   ├── process_data.py      # Specialized preprocessing for E3 data
 │   │   ├── process_data_E5.py   # Specialized preprocessing for E5 data
 │   │   └── process_data_optc.py # Specialized preprocessing for OPTC data
 │   ├── datahandlers/       # Data loading and preprocessing modules
