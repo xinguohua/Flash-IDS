@@ -159,7 +159,7 @@ def run_data_processing():
     for scene, data in json_map.items():
         for category in data.keys():
             for original_path in data.get(category, []):
-                # filtered_path = filter_json_by_hostname_and_time(original_path, keyword="SysClient0201")
+                filtered_path = filter_json_by_hostname_and_time(original_path, keyword="SysClient0201")
                 all_filtered_paths.append(original_path)
     print("\nStage 1 Complete. All filtered JSON files have been generated.")
 
