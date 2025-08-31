@@ -133,18 +133,23 @@ def process_edges_and_count(file_path, id_nodetype_map, output_path):
     return edge_count
 
 def collect_json_paths(base_dir):
-    result = {'optc_data_scene': {'all_data': []}}
-    if not os.path.isdir(base_dir):
-        print(f"Error: Directory '{base_dir}' not found.")
-        return {}
-    for file in os.listdir(base_dir):
-        if file.endswith((".json", ".txt", ".log")) and not file.startswith("._"):
-            result['optc_data_scene']['all_data'].append(os.path.join(base_dir, file))
+    result = {}
+    for subdir in os.listdir(base_dir):
+        subdir_path = os.path.join(base_dir, subdir)
+        if os.path.isdir(subdir_path):
+            result[subdir] = {"benign": [], "malicious": []}
+            for category in ["benign", "malicious"]:
+                category_path = os.path.join(subdir_path, category)
+                if os.path.exists(category_path):
+                    for file in os.listdir(category_path):
+                        if file.endswith(".json") and not file.startswith("._"):
+                            full_path = os.path.join(category_path, file)
+                            result[subdir][category].append(full_path)
     return result
 
 
 def run_data_processing():
-    base_path = r"D:\数据集分析\Flash-IDS-main\optc"
+    base_path = r"../../data_files_optc"
     json_map = collect_json_paths(base_path)
 
     statistics = {"total_nodes": 0, "total_edges": 0}
