@@ -34,9 +34,14 @@ https://github.com/FiveDirections/OpTC-data
 ```
 /                           # Root directory
 ├── atlas_data/             # Stores Atlas-related data files
-├── data_files/             # Stores other data files
+├── data_files/             # Stores E3 data files
+├── data_files5/            # Stores E5 data files
+├── data_files_optc/        # Stores optc data files
 ├── process/                # Core logic and scripts (data processing, model training, reasoning)
-│   ├── process_data.py     # Process raw data into usable format
+│   ├── preprocess/          # Data preprocessing scripts and utilities
+│   │   ├── process_data.py      # General data preprocessing for E3 data
+│   │   ├── process_data_E5.py   # Specialized preprocessing for E5 data
+│   │   └── process_data_optc.py # Specialized preprocessing for OPTC data
 │   ├── datahandlers/       # Data loading and preprocessing modules
 │   ├── embedders/          # Embedding generation modules
 │   ├── match/              # Matching and comparison logic
