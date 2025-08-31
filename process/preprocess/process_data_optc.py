@@ -81,7 +81,7 @@ def process_data(file_path):
             for obj in data: #如果 data 是一个列表，就开始遍历这个列表中的每一个元素。这里的每个 obj 都应该是一个代表单条日志记录的Python字典
                 if not isinstance(obj, dict): continue #再次验证，确保列表中的元素 obj 是一个字典。如果不是（例如，列表中混入了 null 或其他类型的值），就用 continue 跳过这个元素
                 actor = obj.get("actorID") #使用 .get() 方法安全地获取 "actorID" 的值。如果这个键不存在，.get() 会返回 None 而不是报错。
-                if actor: id_nodetype_map[actor] = "Subject"  #如果成功获取到了 actor 的ID（即值不是None），就将其作为键添加到 id_nodetype_map 中，并将其类型硬编码为 "Subject"。
+                if actor: id_nodetype_map[actor] = "PROCESS"  #如果成功获取到了 actor 的ID（即值不是None），就将其作为键添加到 id_nodetype_map 中，并将其类型硬编码为 "Subject"。
                 object_id = obj.get("objectID")
                 object_type = obj.get("object")
                 if object_id and object_type: id_nodetype_map[object_id] = object_type  # 只有当客体的ID和类型都成功获取到时，才将其添加到节点地图中
@@ -94,7 +94,7 @@ def process_data(file_path):
     with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
         for line in f:
             actor_match = actor_pattern.search(line) #在当前行 line 中搜索匹配 actor_pattern 的部分
-            if actor_match: id_nodetype_map[actor_match.group(1)] = 'Subject' #如果找到了匹配项
+            if actor_match: id_nodetype_map[actor_match.group(1)] = 'PROCESS' #如果找到了匹配项
             object_id_match = object_id_pattern.search(line)  #同上
             object_type_match = object_type_pattern.search(line)
             if object_id_match and object_type_match:
