@@ -12,13 +12,13 @@ from .common import merge_properties, add_node_properties, get_or_add_node, add_
 from .type_enum import ObjectType
 
 
-class DARPAHandler(BaseProcessor):
+class DARPAHandler5(BaseProcessor):
     def load(self):
         json_map = collect_json_paths(self.base_path)
         label_map = collect_label_paths(self.base_path)
         for scene, category_data in json_map.items():
             # TODO: for test
-            if scene != "theia33":
+            if scene != "cadets93":
                 continue
             if self.train == False:
                 label_file = open(label_map[scene])
@@ -130,51 +130,51 @@ def collect_nodes_from_log(paths):
         with open(p) as f:
             for line in f:
                 # --- NetFlowObject ---
-                if '{"datum":{"com.bbn.tc.schema.avro.cdm18.NetFlowObject"' in line:
+                if '{"datum":{"com.bbn.tc.schema.avro.cdm20.NetFlowObject"' in line:
                     try:
+                        pattern = (
+                            r'NetFlowObject":{"uuid":"([^"]+)"'  # uuid
+                            r'.*?"localAddress":(null|\{"string":"[^"]*"\})'  # localAddress
+                            r'.*?"localPort":(null|\{"int":[0-9]+\})'  # localPort
+                            r'.*?"remoteAddress":\{"string":"([^"]+)"\}'  # remoteAddress
+                            r'.*?"remotePort":\{"int":([0-9]+)\}'  # remotePort
+                        )
                         res = re.findall(
-                            'NetFlowObject":{"uuid":"(.*?)"(.*?)"localAddress":"(.*?)","localPort":(.*?),"remoteAddress":"(.*?)","remotePort":(.*?),',
+                            pattern,
                             line
                         )[0]
                         nodeid = res[0]
-                        srcaddr = res[2]
-                        srcport = res[3]
-                        dstaddr = res[4]
-                        dstport = res[5]
+                        srcaddr = res[1]  # 可能是 null 或 {"string":"..."}
+                        srcport = res[2]  # 可能是 null 或 {"int":...}
+                        dstaddr = res[3]
+                        dstport = res[4]
                         nodeproperty = f"{srcaddr},{srcport},{dstaddr},{dstport}"
                         netobj2pro[nodeid] = nodeproperty
                     except:
                         pass
 
                 # --- Subject ---
-                elif '{"datum":{"com.bbn.tc.schema.avro.cdm18.Subject"' in line:
+                elif '{"datum":{"com.bbn.tc.schema.avro.cdm20.Subject"' in line:
                     try:
-                        res = re.findall(
-                            'Subject":{"uuid":"(.*?)"(.*?)"cmdLine":{"string":"(.*?)"}(.*?)"properties":{"map":{"tgid":"(.*?)"',
-                            line
-                        )[0]
-                        nodeid = res[0]
-                        cmdLine = res[2]
-                        tgid = res[4]
-                        try:
-                            path_str = re.findall('"path":"(.*?)"', line)[0]
-                            path = path_str
-                        except:
-                            path = "null"
-                        nodeProperty = f"{cmdLine},{tgid},{path}"
-                        subject2pro[nodeid] = nodeProperty
+                        pattern = r'Subject":\{"uuid":"([^"]+)".*?"cmdLine":(?:(?:\{"string":"([^"]*)"\})|null).*?"properties":\{"map":(\{.*?\})\}'
+                        res = re.findall(pattern, line)
+                        if res:
+                            uuid, cmdline, properties = res[0]
+                            nodeid = uuid
+                            nodeProperty = f"{cmdline},{properties}"
+                            subject2pro[nodeid] = nodeProperty
                     except:
                         pass
 
                 # --- FileObject ---
-                elif '{"datum":{"com.bbn.tc.schema.avro.cdm18.FileObject"' in line:
+                elif '{"datum":{"com.bbn.tc.schema.avro.cdm20.FileObject"' in line:
                     try:
                         res = re.findall(
-                            'FileObject":{"uuid":"(.*?)"(.*?)"filename":"(.*?)"',
+                            r'uuid":"([^"]+)".*?"properties":\{"map":(\{.*?\})\}',
                             line
                         )[0]
                         nodeid = res[0]
-                        filepath = res[2]
+                        filepath = res[1]
                         nodeproperty = filepath
                         file2pro[nodeid] = nodeproperty
                     except:
@@ -192,37 +192,37 @@ def collect_edges_from_log(d, paths):
             data = [json.loads(x) for i, x in enumerate(f) if "EVENT" in x ]
         for x in data:
             try:
-                action = x['datum']['com.bbn.tc.schema.avro.cdm18.Event']['type']
+                action = x['datum']['com.bbn.tc.schema.avro.cdm20.Event']['type']
             except:
                 action = ''
             try:
-                actor = x['datum']['com.bbn.tc.schema.avro.cdm18.Event']['subject']['com.bbn.tc.schema.avro.cdm18.UUID']
+                actor = x['datum']['com.bbn.tc.schema.avro.cdm20.Event']['subject']['com.bbn.tc.schema.avro.cdm20.UUID']
             except:
                 actor = ''
             try:
-                obj = x['datum']['com.bbn.tc.schema.avro.cdm18.Event']['predicateObject'][
-                    'com.bbn.tc.schema.avro.cdm18.UUID']
+                obj = x['datum']['com.bbn.tc.schema.avro.cdm20.Event']['predicateObject'][
+                    'com.bbn.tc.schema.avro.cdm20.UUID']
             except:
                 obj = ''
             try:
-                timestamp = x['datum']['com.bbn.tc.schema.avro.cdm18.Event']['timestampNanos']
+                timestamp = x['datum']['com.bbn.tc.schema.avro.cdm20.Event']['timestampNanos']
             except:
                 timestamp = ''
             try:
-                cmd = x['datum']['com.bbn.tc.schema.avro.cdm18.Event']['properties']['map']['cmdLine']
+                cmd = x['datum']['com.bbn.tc.schema.avro.cdm20.Event']['properties']['map']['cmdLine']
             except:
                 cmd = ''
             try:
-                path = x['datum']['com.bbn.tc.schema.avro.cdm18.Event']['predicateObjectPath']['string']
+                path = x['datum']['com.bbn.tc.schema.avro.cdm20.Event']['predicateObjectPath']['string']
             except:
                 path = ''
             try:
-                path2 = x['datum']['com.bbn.tc.schema.avro.cdm18.Event']['predicateObject2Path']['string']
+                path2 = x['datum']['com.bbn.tc.schema.avro.cdm20.Event']['predicateObject2Path']['string']
             except:
                 path2 = ''
             try:
-                obj2 = x['datum']['com.bbn.tc.schema.avro.cdm18.Event']['predicateObject2'][
-                    'com.bbn.tc.schema.avro.cdm18.UUID']
+                obj2 = x['datum']['com.bbn.tc.schema.avro.cdm20.Event']['predicateObject2'][
+                    'com.bbn.tc.schema.avro.cdm20.UUID']
                 info.append({
                     'actorID': actor, 'objectID': obj2, 'action': action, 'timestamp': timestamp,
                     'exec': cmd, 'path': path2
