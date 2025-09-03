@@ -18,7 +18,7 @@ class OptcHandler(BaseProcessor):
 
         for scene, category_data in json_map.items():
             # 只处理 day1
-            if scene != "day1":
+            if scene != "0402":
                 continue
 
             # 处理 label

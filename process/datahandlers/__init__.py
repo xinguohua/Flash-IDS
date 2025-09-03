@@ -1,7 +1,7 @@
 from .darpa_handler import DARPAHandler
 from .atlas_handler import ATLASHandler
 from .darpa_handler5 import DARPAHandler5
-
+from .optc_handler import OptcHandler
 __all__ = ["DARPAHandler", "ATLASHandler"]
 
 handler_map = {
@@ -12,6 +12,7 @@ handler_map = {
     "atlas": ATLASHandler,
     "cadets5": DARPAHandler5,
     "theia5": DARPAHandler5,
+    "optc": OptcHandler
 }
 
 path_map = {
@@ -22,6 +23,7 @@ path_map = {
     "atlas": "/home/nsas2020/fuzz/Flash-IDS/atlas_data",
     "cadets5": "/home/nsas2020/fuzz/Flash-IDS/data_files5/cadets",
     "theia5": "/home/nsas2020/fuzz/Flash-IDS/data_files5/theia",
+    "optc": "/home/nsas2020/fuzz/Flash-IDS/data_files_optc/day1"
 }
 
 def get_handler(name, train):

@@ -9,3 +9,11 @@ class ObjectType(Enum):
     PRINCIPAL_REMOTE = 4  # 远程实体
     PRINCIPAL_LOCAL = 5  # 本地实体
     NetFlowObject = 6  # 与网络流量相关
+
+    FILE_OBJECT_FILE = 7
+    FILE_OBJECT_UNIX_SOCKET = 8
+    FILE_OBJECT_DIR = 9
+    SRCSINK_IPC = 10
+    IPC_OBJECT_PIPE_UNNAMED = 11
+    IPC_OBJECT_SOCKET_PAIR = 12
+    RECORD_NET_FLOW_OBJECT = 13

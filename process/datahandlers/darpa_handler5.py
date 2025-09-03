@@ -188,8 +188,8 @@ def collect_edges_from_log(d, paths):
         with open(p) as f:
             # TODO
             # for test: 只取每个文件前300条包含"EVENT"的
-            # data = [json.loads(x) for i, x in enumerate(f) if "EVENT" in x and i < 10000]
-            data = [json.loads(x) for i, x in enumerate(f) if "EVENT" in x ]
+            data = [json.loads(x) for i, x in enumerate(f) if "EVENT" in x and i < 10000]
+            # data = [json.loads(x) for i, x in enumerate(f) if "EVENT" in x ]
         for x in data:
             try:
                 action = x['datum']['com.bbn.tc.schema.avro.cdm20.Event']['type']

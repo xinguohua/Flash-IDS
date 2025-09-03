@@ -11,6 +11,8 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 # data_handler = get_handler("atlas")
 # data_handler = get_handler("theia", True)
 data_handler = get_handler("cadets5", True)
+# data_handler = get_handler("optc", True)
+
 
 
 # 加载数据
@@ -18,6 +20,7 @@ data_handler.load()
 # 成整个大图+捕捉特征语料+简化策略这里添加
 features, edges, mapp, relations, G  = data_handler.build_graph()
 # 大图分割
+print("===============detect_communities=============")
 communities = detect_communities(G)
 
 # 嵌入构造特征向量
