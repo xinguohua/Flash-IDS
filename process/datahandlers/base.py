@@ -11,6 +11,7 @@ class BaseProcessor(ABC):
         self.use_df = []
         self.all_labels = []
         self.total_loaded_bytes = 0
+        self.max_benign_lines = 10000
 
     @abstractmethod
     def load(self):

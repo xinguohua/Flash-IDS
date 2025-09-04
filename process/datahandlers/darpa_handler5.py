@@ -49,13 +49,17 @@ class DARPAHandler5(BaseProcessor):
                 df.sort_values(by='timestamp', ascending=True, inplace=True)
 
                 # 形成一个更完整的视图
+                print("collect_nodes_from_log")
                 netobj2pro, subject2pro, file2pro = collect_nodes_from_log(json_files)
+                print("collect_edges_from_log")
                 df = collect_edges_from_log(df, json_files)
 
                 if self.train:
                     # 只取良性前80%训练
                     num_rows = int(len(df) * 0.9)
-                    df = df.iloc[:num_rows]
+                    df = df.iloc[:self.max_benign_lines]
+                    # for test
+                    # df = df.iloc[:num_rows]
                     self.all_dfs.append(df)
                 else:
                     # 数据选择逻辑
@@ -83,8 +87,9 @@ class DARPAHandler5(BaseProcessor):
         """成图+捕捉特征语料+简化策略这里添加"""
         G = ig.Graph(directed=True)
         nodes, edges, relations = {}, [], {}
-
+        print("build_graph")
         for _, row in self.use_df.iterrows():
+            # print(row)
             action = row["action"]
 
             actor_id = row["actorID"]

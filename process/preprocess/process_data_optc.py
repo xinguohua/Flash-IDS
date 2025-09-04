@@ -149,6 +149,11 @@ def collect_json_paths(base_dir):
 
 
 def run_data_processing():
+    # ==================== 新增/修改点 1 ====================
+    # 在这里设置你想要的前缀，例如 "day1", "day2" 等
+    day_prefix = "day1"
+    # ======================================================
+
     base_path = r"../../data_files_optc/day1"
     json_map = collect_json_paths(base_path)
 
@@ -177,10 +182,21 @@ def run_data_processing():
     print(f"Combined node map built. Total unique nodes in filtered data: {statistics['total_nodes']}")
 
     for filtered_path in all_filtered_paths:
+        # '../../data_files_optc/day1/0402/benign'
         dir_name = os.path.dirname(filtered_path)
+        # 'AIA-401-425.json'
         base_name = os.path.basename(filtered_path)
         name, _ext = os.path.splitext(base_name)
-        output_txt_path = os.path.join(dir_name, f"{name}.txt")
+        # 要拼接成
+        # ../../data_files_optc/day1/0402_benign_AIA-401-425.txt
+        # 拆分目录
+        parent_dir = os.path.dirname(os.path.dirname(dir_name))  # ../../data_files_optc/day1
+        last1 = os.path.basename(os.path.dirname(dir_name))  # 0402
+        last2 = os.path.basename(dir_name)  # benign
+        prefix = f"{last1}_{last2}"  # 0402_benign
+        output_txt_path = os.path.join(parent_dir, f"{prefix}_{name}.txt")
+        # ======================================================
+
         print(f"\n--- Processing: {filtered_path} -> {output_txt_path} ---")
 
         with open(output_txt_path, 'w', encoding='utf-8') as f:
