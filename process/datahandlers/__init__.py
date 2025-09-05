@@ -16,14 +16,14 @@ handler_map = {
 }
 
 path_map = {
-    "theia": "/home/nsas2020/fuzz/Flash-IDS/data_files/theia",
-    "cadets": "/home/nsas2020/fuzz/Flash-IDS/data_files/cadets",
-    "clearscope": "/home/nsas2020/fuzz/Flash-IDS/data_files/clearscope",
-    "trace": "/home/nsas2020/fuzz/Flash-IDS/data_files/trace",
-    "atlas": "/home/nsas2020/fuzz/Flash-IDS/atlas_data",
-    "cadets5": "/home/nsas2020/fuzz/Flash-IDS/data_files5/cadets",
-    "theia5": "/home/nsas2020/fuzz/Flash-IDS/data_files5/theia",
-    "optc": "/home/nsas2020/fuzz/Flash-IDS/data_files_optc/day1"
+    "theia": "/mnt/bigdata/aptdata/data_files/theia",
+    "cadets": "/mnt/bigdata/aptdata/data_files/cadets",
+    "clearscope": "/mnt/bigdata/aptdata/data_files/clearscope",
+    "trace": "/mnt/bigdata/aptdata/data_files/trace",
+    "atlas": "/mnt/bigdata/aptdata/atlas_data",
+    "cadets5": "/mnt/bigdata/aptdata/data_files5/cadets",
+    "theia5": "/mnt/bigdata/aptdata/data_files5/theia",
+    "optc": "/mnt/bigdata/aptdata/data_files_optc/day1"
 }
 
 def get_handler(name, train):
