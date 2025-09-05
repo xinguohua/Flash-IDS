@@ -43,6 +43,10 @@ https://github.com/FiveDirections/OpTC-data
 │   │   ├── process_data_E5.py   # Specialized preprocessing for E5 data
 │   │   └── process_data_optc.py # Specialized preprocessing for OPTC data
 │   ├── datahandlers/       # Data loading and preprocessing modules
+│   │   ├── atlas_handler.py            # Handler for ATLAS dataset
+│   │   ├── darpa_handler.py            # Handler for DARPA dataset (general version)
+│   │   ├── optc_handler.py             # Handler for OPTC dataset
+│   │   └── darpa_handler5.py           # Handler for DARPA dataset (phase-5 variant)
 │   ├── embedders/          # Embedding generation modules
 │   ├── match/              # Matching and comparison logic
 │   ├── test/               # Test scripts and cases
