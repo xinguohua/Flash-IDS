@@ -265,7 +265,7 @@ def detect_communities(G):
     # 解析社区划分
     communities = {i: [] for i in set(partition.membership)}
     for node, community_id in enumerate(partition.membership):
-        communities[community_id].append(G.vs[node]["name"])
+        communities[community_id].append((G.vs[node]["name"],G.vs[node]["properties"]))
 
     print_communities(communities)
     return communities
