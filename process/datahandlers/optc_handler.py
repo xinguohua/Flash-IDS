@@ -46,8 +46,18 @@ class OptcHandler(BaseProcessor):
                         continue
 
                     # 对应的 TXT 文件
-                    txt_name = f"{scene}_{os.path.splitext(os.path.basename(jf))[0]}.txt"
-                    txt_path = os.path.join(self.base_path, txt_name)
+                    dir_name = os.path.dirname(jf)
+                    # 'AIA-401-425.json'
+                    base_name = os.path.basename(jf)
+                    name, _ext = os.path.splitext(base_name)
+                    # 要拼接成
+                    # ../../data_files_optc/day1/0402_benign_AIA-401-425.txt
+                    # 拆分目录
+                    parent_dir = os.path.dirname(os.path.dirname(dir_name))  # ../../data_files_optc/day1
+                    last1 = os.path.basename(os.path.dirname(dir_name))  # 0402
+                    last2 = os.path.basename(dir_name)  # benign
+                    prefix = f"{last1}_{last2}"  # 0402_benign
+                    txt_path = os.path.join(parent_dir, f"{prefix}_{name}.txt")
                     if not os.path.isfile(txt_path):
                         print(f"[WARN] 找不到对应 TXT 文件: {txt_path}, 跳过")
                         continue
