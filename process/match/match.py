@@ -98,7 +98,7 @@ def get_default_config():
                 n_changes_positive=0.1,
                 n_changes_negative=0.5)),
         training=dict(
-            batch_size=20,
+            batch_size=2,
             learning_rate=1e-4,
             mode='pair',
             loss='margin',  # other: hamming

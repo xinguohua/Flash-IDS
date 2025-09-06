@@ -79,7 +79,7 @@ class OptcHandler(BaseProcessor):
                     # 切分数据
                     if self.train:
                         cut_idx = int(len(df) * 0.9)
-                        df = df.iloc[:self.max_benign_lines]
+                        df = df.iloc[:cut_idx]
                         print(f"[INFO] 训练模式 -> 保留前 90%, 行数={len(df)}")
                     else:
                         if category == "benign":
@@ -112,52 +112,71 @@ class OptcHandler(BaseProcessor):
             print(f"\n[FINAL] 没有生成任何 df, 返回空 DataFrame")
 
     def build_graph(self):
+        use_df = self.use_df
+        all_labels = set(self.all_labels)
+
+        _otype_cache = {}
+
+        def _otype(v):
+            if v not in _otype_cache:
+                _otype_cache[v] = optcObjectType[v].value
+            return _otype_cache[v]
+
+        nodes_props, nodes_type, edges_map = {}, {}, {}
+
+        # === 扫描 DataFrame 收集节点与边 ===
+        for r in use_df.itertuples(index=False):
+            action = getattr(r, "action")
+            actor_id = getattr(r, "actorID")
+            object_id = getattr(r, "objectID")
+
+            # actor 节点
+            props_actor = extract_properties_optc(actor_id, r, action,
+                                             self.all_netobj2pro, self.all_subject2pro, self.all_file2pro)
+            add_node_properties(nodes_props, actor_id, props_actor)
+            if actor_id not in nodes_type:
+                nodes_type[actor_id] = _otype(getattr(r, "actor_type"))
+
+            # object 节点
+            props_obj = extract_properties_optc(object_id, r, action,
+                                           self.all_netobj2pro, self.all_subject2pro, self.all_file2pro)
+            add_node_properties(nodes_props, object_id, props_obj)
+            if object_id not in nodes_type:
+                nodes_type[object_id] = _otype(getattr(r, "object"))
+
+            # 累加动作到 set
+            edges_map.setdefault((actor_id, object_id), set()).add(action)
+
+        # === 创建图节点 ===
+        node_ids = list(nodes_props.keys())
+        index_map = {nid: i for i, nid in enumerate(node_ids)}
+
         G = ig.Graph(directed=True)
-        nodes, edges, relations = {}, [], {}
+        G.add_vertices(len(node_ids))
+        G.vs["name"] = node_ids
+        G.vs["type"] = [nodes_type.get(nid) for nid in node_ids]
+        G.vs["properties"] = [nodes_props[nid] for nid in node_ids]
+        G.vs["label"] = [1 if nid in all_labels else 0 for nid in node_ids]
 
-        for _, row in self.use_df.iterrows():
-            action = row.get("action", "")
+        # === 创建图边 ===
+        unique_edges = list(edges_map.keys())
+        if unique_edges:
+            edge_idx = [(index_map[a], index_map[b]) for (a, b) in unique_edges]
+            G.add_edges(edge_idx)
+            # 每条边的 action 是 list(set)
+            G.es["action"] = [list(edges_map[(a, b)]) for (a, b) in unique_edges]
 
-            actor_id = row.get("actorID", "")
-            object_id = row.get("objectID", "")
+        # === 下游需要的结构 ===
+        features = [nodes_props[nid] for nid in node_ids]
+        edge_index = [[], []]
+        relations_index = {}
+        for a, b in unique_edges:
+            s, d = index_map[a], index_map[b]
+            edge_index[0].append(s)
+            edge_index[1].append(d)
+            relations_index[(s, d)] = list(edges_map[(a, b)])
 
-            # 节点属性（字符串特征）
-            properties_actor = extract_properties_optc(
-                actor_id, row, action,
-                self.all_netobj2pro, self.all_subject2pro, self.all_file2pro
-            )
-            properties_object = extract_properties_optc(
-                object_id, row, action,
-                self.all_netobj2pro, self.all_subject2pro, self.all_file2pro
-            )
-
-            add_node_properties(nodes, actor_id, properties_actor)
-            add_node_properties(nodes, object_id, properties_object)
-
-            edge = (actor_id, object_id)
-            edges.append(edge)
-            relations[edge] = action
-
-            # ---- 构图（节点类型用枚举） ----
-            actor_idx = get_or_add_node(G, actor_id, optcObjectType[row['actor_type']].value, properties_actor)
-            object_idx = get_or_add_node(G, object_id, optcObjectType[row['object']].value, properties_object)
-
-            # 节点标签
-            G.vs[actor_idx]["label"] = int(actor_id in self.all_labels)
-            G.vs[object_idx]["label"] = int(object_id in self.all_labels)
-
-            # 添加边
-            add_edge_if_new(G, actor_idx, object_idx, action)
-
-        # ---- 构建 features 和 edge_index ----
-        features, edge_index, index_map, relations_index = [], [[], []], {}, {}
-        for node_id, props in nodes.items():
-            features.append(props)
-            index_map[node_id] = len(features) - 1
-
-        update_edge_index(edges, edge_index, index_map, relations, relations_index)
-
-        return features, edge_index, list(index_map.keys()), relations_index, G
+        return features, edge_index, node_ids, relations_index, G
 
 
 def _read_optc_txt_as_df(txt_path):
@@ -245,8 +264,13 @@ def collect_edges_from_log_optc(d, paths):
 
 
 def extract_properties_optc(node_id, row, action, netobj2pro, subject2pro, file2pro):
-    if node_id in netobj2pro: return netobj2pro[node_id]
-    if node_id in file2pro: return file2pro[node_id]
-    if node_id in subject2pro: return subject2pro[node_id]
-    parts = [str(row.get("exec","")), action, str(row.get("path",""))]
-    return " ".join([p for p in parts if p])
+    if node_id in netobj2pro:
+        return netobj2pro[node_id]
+    elif node_id in file2pro:
+        return file2pro[node_id]
+    elif node_id in subject2pro:
+        return subject2pro[node_id]
+    else:
+        exec_cmd = getattr(row, "exec", "")
+        path_val = getattr(row, "path", "")
+        return " ".join([exec_cmd, action] + ([path_val] if path_val else []))

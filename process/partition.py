@@ -255,6 +255,7 @@ def print_communities(communities):
         print(f"Community {cid}: {nodes}")
 
 
+
 def detect_communities(G):
     set_weight(G)
 
@@ -269,7 +270,7 @@ def detect_communities(G):
         communities[community_id].append(G.vs[node]["name"])
         Lcommunities[community_id].append((G.vs[node]["name"],G.vs[node]["properties"]))
 
-    print_communities(Lcommunities)
+    print_communities(communities)
     return communities
 
 def detect_communities_with_id(G):

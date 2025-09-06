@@ -1,14 +1,12 @@
-import json
 import os
 import re
-
+import time
 import igraph as ig
+import orjson
 import pandas as pd
-
 from .base import BaseProcessor
 from .common import collect_json_paths, collect_label_paths
-from .common import merge_properties, add_node_properties, get_or_add_node, add_edge_if_new, \
-    update_edge_index
+from .common import merge_properties, add_node_properties
 from .type_enum import ObjectType
 
 
@@ -50,7 +48,12 @@ class DARPAHandler(BaseProcessor):
 
                 # 形成一个更完整的视图
                 netobj2pro, subject2pro, file2pro = collect_nodes_from_log(json_files)
+                print("==========collect_edges_from_log=======start")
+                t0 = time.time()
                 df = collect_edges_from_log(df, json_files)
+                t1 = time.time()
+                print("==========collect_edges_from_log=======end")
+                print(f"耗时: {t1 - t0:.2f} 秒")
 
                 if self.train:
                     # 只取良性前80%训练
@@ -80,47 +83,71 @@ class DARPAHandler(BaseProcessor):
 
 
     def build_graph(self):
-        """成图+捕捉特征语料+简化策略这里添加"""
+        use_df = self.use_df
+        all_labels = set(self.all_labels)
+
+        _otype_cache = {}
+
+        def _otype(v):
+            if v not in _otype_cache:
+                _otype_cache[v] = ObjectType[v].value
+            return _otype_cache[v]
+
+        nodes_props, nodes_type, edges_map = {}, {}, {}
+
+        # === 扫描 DataFrame 收集节点与边 ===
+        for r in use_df.itertuples(index=False):
+            action = getattr(r, "action")
+            actor_id = getattr(r, "actorID")
+            object_id = getattr(r, "objectID")
+
+            # actor 节点
+            props_actor = extract_properties(actor_id, r, action,
+                                             self.all_netobj2pro, self.all_subject2pro, self.all_file2pro)
+            add_node_properties(nodes_props, actor_id, props_actor)
+            if actor_id not in nodes_type:
+                nodes_type[actor_id] = _otype(getattr(r, "actor_type"))
+
+            # object 节点
+            props_obj = extract_properties(object_id, r, action,
+                                           self.all_netobj2pro, self.all_subject2pro, self.all_file2pro)
+            add_node_properties(nodes_props, object_id, props_obj)
+            if object_id not in nodes_type:
+                nodes_type[object_id] = _otype(getattr(r, "object"))
+
+            # 累加动作到 set
+            edges_map.setdefault((actor_id, object_id), set()).add(action)
+
+        # === 创建图节点 ===
+        node_ids = list(nodes_props.keys())
+        index_map = {nid: i for i, nid in enumerate(node_ids)}
+
         G = ig.Graph(directed=True)
-        nodes, edges, relations = {}, [], {}
+        G.add_vertices(len(node_ids))
+        G.vs["name"] = node_ids
+        G.vs["type"] = [nodes_type.get(nid) for nid in node_ids]
+        G.vs["properties"] = [nodes_props[nid] for nid in node_ids]
+        G.vs["label"] = [1 if nid in all_labels else 0 for nid in node_ids]
 
-        for _, row in self.use_df.iterrows():
-            action = row["action"]
+        # === 创建图边 ===
+        unique_edges = list(edges_map.keys())
+        if unique_edges:
+            edge_idx = [(index_map[a], index_map[b]) for (a, b) in unique_edges]
+            G.add_edges(edge_idx)
+            # 每条边的 action 是 list(set)
+            G.es["action"] = [list(edges_map[(a, b)]) for (a, b) in unique_edges]
 
-            actor_id = row["actorID"]
-            properties = extract_properties(actor_id, row, row["action"], self.all_netobj2pro, self.all_subject2pro, self.all_file2pro)
-            add_node_properties(nodes, actor_id, properties)
+        # === 下游需要的结构 ===
+        features = [nodes_props[nid] for nid in node_ids]
+        edge_index = [[], []]
+        relations_index = {}
+        for a, b in unique_edges:
+            s, d = index_map[a], index_map[b]
+            edge_index[0].append(s)
+            edge_index[1].append(d)
+            relations_index[(s, d)] = list(edges_map[(a, b)])
 
-            object_id = row["objectID"]
-            properties1 = extract_properties(object_id, row, row["action"], self.all_netobj2pro, self.all_subject2pro,
-                                             self.all_file2pro)
-            add_node_properties(nodes, object_id, properties1)
-
-            edge = (actor_id, object_id)
-            edges.append(edge)
-            relations[edge] = action
-
-            ## 构建图
-            # 点不重复添加
-            actor_idx = get_or_add_node(G, actor_id, ObjectType[row['actor_type']].value, properties)
-            object_idx = get_or_add_node(G, object_id, ObjectType[row['object']].value, properties)
-            # 标注label
-            # print(f"actor_id{actor_id}")
-            # print(f"object_id{object_id} value{int(object_id in self.all_labels)}")
-            G.vs[actor_idx]["label"] = int(actor_id in self.all_labels)
-            G.vs[object_idx]["label"] = int(object_id in self.all_labels)
-            # 边也不重复添加
-            add_edge_if_new(G, actor_idx, object_idx, action)
-
-        features, edge_index, index_map, relations_index = [], [[], []], {}, {}
-        for node_id, props in nodes.items():
-            features.append(props)
-            index_map[node_id] = len(features) - 1
-
-        update_edge_index(edges, edge_index, index_map, relations, relations_index)
-
-        return features, edge_index, list(index_map.keys()), relations_index, G
-
+        return features, edge_index, node_ids, relations_index, G
 
 def collect_nodes_from_log(paths):
     netobj2pro = {}
@@ -185,60 +212,46 @@ def collect_nodes_from_log(paths):
 def collect_edges_from_log(d, paths):
     info = []
     for p in paths:
-        with open(p) as f:
-            # TODO
-            # for test: 只取每个文件前300条包含"EVENT"的
-            # data = [json.loads(x) for i, x in enumerate(f) if "EVENT" in x and i < 10000]
-            data = [json.loads(x) for i, x in enumerate(f) if "EVENT" in x ]
-        for x in data:
-            try:
-                action = x['datum']['com.bbn.tc.schema.avro.cdm18.Event']['type']
-            except:
-                action = ''
-            try:
-                actor = x['datum']['com.bbn.tc.schema.avro.cdm18.Event']['subject']['com.bbn.tc.schema.avro.cdm18.UUID']
-            except:
-                actor = ''
-            try:
-                obj = x['datum']['com.bbn.tc.schema.avro.cdm18.Event']['predicateObject'][
-                    'com.bbn.tc.schema.avro.cdm18.UUID']
-            except:
-                obj = ''
-            try:
-                timestamp = x['datum']['com.bbn.tc.schema.avro.cdm18.Event']['timestampNanos']
-            except:
-                timestamp = ''
-            try:
-                cmd = x['datum']['com.bbn.tc.schema.avro.cdm18.Event']['properties']['map']['cmdLine']
-            except:
-                cmd = ''
-            try:
-                path = x['datum']['com.bbn.tc.schema.avro.cdm18.Event']['predicateObjectPath']['string']
-            except:
-                path = ''
-            try:
-                path2 = x['datum']['com.bbn.tc.schema.avro.cdm18.Event']['predicateObject2Path']['string']
-            except:
-                path2 = ''
-            try:
-                obj2 = x['datum']['com.bbn.tc.schema.avro.cdm18.Event']['predicateObject2'][
-                    'com.bbn.tc.schema.avro.cdm18.UUID']
-                info.append({
-                    'actorID': actor, 'objectID': obj2, 'action': action, 'timestamp': timestamp,
-                    'exec': cmd, 'path': path2
-                })
-            except:
-                pass
+        with open(p, "rb") as f:
+            for line in f:
+                if b"EVENT" not in line:
+                    continue
+                try:
+                    x = orjson.loads(line)
+                except Exception:
+                    continue
 
-            info.append({
-                'actorID': actor, 'objectID': obj, 'action': action, 'timestamp': timestamp,
-                'exec': cmd, 'path': path
-            })
+                try:
+                    ev = x["datum"]["com.bbn.tc.schema.avro.cdm18.Event"]
+                except Exception:
+                    continue
+
+                action = ev.get("type", "")
+                actor = (ev.get("subject") or {}).get("com.bbn.tc.schema.avro.cdm18.UUID", "")
+                obj = (ev.get("predicateObject") or {}).get("com.bbn.tc.schema.avro.cdm18.UUID", "")
+                timestamp = ev.get("timestampNanos", "")
+                cmd = ((ev.get("properties") or {}).get("map") or {}).get("cmdLine", "")
+                path = (ev.get("predicateObjectPath") or {}).get("string", "")
+                path2 = (ev.get("predicateObject2Path") or {}).get("string", "")
+
+                obj2 = (ev.get("predicateObject2") or {}).get("com.bbn.tc.schema.avro.cdm18.UUID")
+                if obj2:
+                    info.append({
+                        "actorID": actor, "objectID": obj2, "action": action,
+                        "timestamp": timestamp, "exec": cmd, "path": path2
+                    })
+
+                info.append({
+                    "actorID": actor, "objectID": obj, "action": action,
+                    "timestamp": timestamp, "exec": cmd, "path": path
+                })
 
     rdf = pd.DataFrame.from_records(info).astype(str)
     d = d.astype(str)
 
-    return d.merge(rdf, how='inner', on=['actorID', 'objectID', 'action', 'timestamp']).drop_duplicates()
+    return d.merge(rdf, how="inner",
+                   on=["actorID", "objectID", "action", "timestamp"]) \
+            .drop_duplicates()
 
 
 def extract_properties(node_id, row, action, netobj2pro, subject2pro, file2pro):
@@ -249,6 +262,6 @@ def extract_properties(node_id, row, action, netobj2pro, subject2pro, file2pro):
     elif node_id in subject2pro:
         return subject2pro[node_id]
     else:
-        return " ".join(
-            [row.get('exec', ''), action] + ([row.get('path')] if row.get('path') else [])
-        )
+        exec_cmd = getattr(row, "exec", "")
+        path_val = getattr(row, "path", "")
+        return " ".join([exec_cmd, action] + ([path_val] if path_val else []))

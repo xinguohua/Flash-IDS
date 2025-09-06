@@ -1,3 +1,4 @@
+
 import os
 from collections import defaultdict
 
@@ -102,3 +103,6 @@ def update_edge_index(edges, edge_index, index, relations, relations_index):
 
         relation = relations[(src_id, dst_id)]
         relations_index[(src, dst)] = relation
+
+
+
