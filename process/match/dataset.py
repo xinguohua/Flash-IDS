@@ -200,6 +200,17 @@ class GraphEditDistanceDataset(GraphSimilarityDataset):
         n_changes = self._k_pos if positive else self._k_neg
         # 对子图 `g` 进行边修改
         changed_g = substitute_random_edges_ig(g, g_add, positive, n_changes)
+
+        def _check_graph(graph, name, nodes):
+            if graph.vcount() == 0 or graph.ecount() == 0:
+                raise ValueError(
+                    f"{name} is invalid (vcount={graph.vcount()}, ecount={graph.ecount()}). "
+                    f"nodes={len(nodes)}"
+                )
+
+        _check_graph(g, "g", community_nodes)
+        _check_graph(changed_g, "changed_g", changed_community_nodes)
+
         return g, changed_g
 
     def _pairs(self, batch_size, G, node_embeddings, edge_embeddings):
@@ -218,7 +229,7 @@ class GraphEditDistanceDataset(GraphSimilarityDataset):
                     g1, g2 = self._get_pair(positive, community_list, idx, G)
                 except Exception as e:
                     print(f"[错误] 获取图对失败，跳过当前样本: {e}")
-                    continue  # 或者你也可以记录一下失败次数
+                    continue
                 batch_graphs.append((g1, g2))
                 batch_labels.append(1 if positive else -1)
                 positive = not positive
@@ -231,53 +242,48 @@ class GraphEditDistanceDataset(GraphSimilarityDataset):
             labels = np.array(batch_labels, dtype=np.int32)
             yield packed_graphs, labels
 
-    def _pack_batch(self, graphs, node_embeddings, edge_embeddings):
-        """Pack a batch of graphs into a single `GraphData` instance.
-    Args:
-      graphs: a list of generated networkx graphs.
-    Returns:
-      graph_data: a `GraphData` instance, with node and edge indices properly
-        shifted.
-    """
+    def _pack_batch(self, graphs, node_embeddings, edge_embeddings, node_dim=20, edge_dim=20):
+        """Pack a batch of graphs into a single `GraphData` instance."""
+        # 展开嵌套
         Graphs = []
         for graph in graphs:
-            for inergraph in graph:
-                Graphs.append(inergraph)
+            for innergraph in graph:
+                Graphs.append(innergraph)
         graphs = Graphs
+
         from_idx = []
         to_idx = []
         graph_idx = []
         node_names = []
-        edge_relations = []
+        edge_relations = []  # ← 放在循环外
 
         n_total_nodes = 0
         n_total_edges = 0
         for i, g in enumerate(graphs):
             n_nodes = g.vcount()
             n_edges = g.ecount()
-            # 检查是否为空图
-            if n_nodes == 0:
-                print(f"[警告] 图 {i} 没有节点，跳过！")
-                continue
-
-            if n_edges == 0:
-                print(f"[警告] 图 {i} 没有边，跳过！")
-                continue
 
             edges = np.array(g.get_edgelist(), dtype=np.int32)
-            # shift the node indices for the edges
             from_idx.append(edges[:, 0] + n_total_nodes)
             to_idx.append(edges[:, 1] + n_total_nodes)
             graph_idx.append(np.ones(n_nodes, dtype=np.int32) * i)
             node_names.extend([g.vs[j]['name'] for j in range(n_nodes)])
-            edge_relations.extend([
-                g.es[k]['actions'] if 'actions' in g.es[k].attributes() else "undefined_relation"
-                for k in range(n_edges)
-            ])
+
+            # 累积边的 action
+            for k in range(n_edges):
+                edge = g.es[k]
+                if "action" in edge.attributes():
+                    acts = edge["action"]
+                    if isinstance(acts, (list, set)):
+                        relation = "|".join(map(str, acts))
+                    else:
+                        relation = str(acts)
+                else:
+                    relation = "undefined_relation"
+                edge_relations.append(relation)
 
             n_total_nodes += n_nodes
             n_total_edges += n_edges
-
 
         GraphData = collections.namedtuple('GraphData', [
             'from_idx',
@@ -290,38 +296,43 @@ class GraphEditDistanceDataset(GraphSimilarityDataset):
         if not from_idx:
             return None
 
+        # —— 节点特征 —— #
         node_feature_list = []
         for name in node_names:
             if name in node_embeddings:
-                node_feature_list.append(node_embeddings[name])
+                vec = np.array(node_embeddings[name], dtype=np.float32)
             else:
-                # 填一个正确维度的全1向量（假设维度是 30）
-                node_feature_list.append(np.ones(30, dtype=np.float32))
-
+                vec = np.ones(node_dim, dtype=np.float32)
+            # pad / 截断
+            if vec.shape[0] < node_dim:
+                vec = np.pad(vec, (0, node_dim - vec.shape[0]))
+            elif vec.shape[0] > node_dim:
+                vec = vec[:node_dim]
+            node_feature_list.append(vec)
         node_features = np.array(node_feature_list, dtype=np.float32)
+
+        # —— 边特征 —— #
         edge_feature_list = []
         for name in edge_relations:
             if name in edge_embeddings:
-                edge_feature_list.append(edge_embeddings[name])
+                vec = np.array(edge_embeddings[name], dtype=np.float32)
             else:
-                # 填一个正确维度的全1向量
-                edge_feature_list.append(np.ones(30, dtype=np.float32))
+                vec = np.ones(edge_dim, dtype=np.float32)
+            if vec.shape[0] < edge_dim:
+                vec = np.pad(vec, (0, edge_dim - vec.shape[0]))
+            elif vec.shape[0] > edge_dim:
+                vec = vec[:edge_dim]
+            edge_feature_list.append(vec)
         edge_features = np.array(edge_feature_list, dtype=np.float32)
 
         return GraphData(
             from_idx=np.concatenate(from_idx, axis=0),
             to_idx=np.concatenate(to_idx, axis=0),
-            # this task only cares about the structures, the graphs have no features.
-            # setting higher dimension of ones to confirm code functioning
-            # with high dimensional features.
-            # node_features=np.ones((n_total_nodes, 8), dtype=np.float32),
             node_features=node_features,
-            # edge_features=np.ones((n_total_edges, 4), dtype=np.float32),
             edge_features=edge_features,
             graph_idx=np.concatenate(graph_idx, axis=0),
             n_graphs=len(graphs),
         )
-
 
 # Use Fixed datasets for evaluation
 @contextlib.contextmanager
@@ -378,7 +389,12 @@ class FixedGraphEditDistanceDataset(GraphEditDistanceDataset):
             positive = True
             idx = 0
             for _ in range(self._dataset_size):
-                pairs.append(self._get_pair(positive, community_list, idx, G))
+                try:
+                    g1, g2 = self._get_pair(positive, community_list, idx, G)
+                except Exception as e:
+                    print(f"[错误] 获取图对失败，跳过当前样本: {e}")
+                    continue
+                pairs.append((g1, g2))
                 idx += 1
                 if idx == len(community_list):
                     idx = 0

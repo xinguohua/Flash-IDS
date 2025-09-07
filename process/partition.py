@@ -1,6 +1,7 @@
 import igraph as ig
 import leidenalg as la
 from process.type_enum import ObjectType
+from collections import defaultdict
 
 resource_types = {ObjectType.NETFLOW_OBJECT.value, ObjectType.FILE_OBJECT_BLOCK.value, ObjectType.MemoryObject.value}
 
@@ -271,6 +272,109 @@ def detect_communities(G):
         Lcommunities[community_id].append((G.vs[node]["name"],G.vs[node]["properties"]))
 
     print_communities(communities)
+    return communities
+
+
+# def detect_communities_with_Max(G, threshold=100, method="RB", gamma=0.1, max_iter=10):
+#     """
+#     使用 Leiden 社区检测，自动调整分辨率参数，保证所有社区 <= threshold
+#     - threshold: 社区大小上限
+#     - method: "RB" | "CPM" | "MOD"
+#     - gamma: 初始分辨率参数 (RB/CPM 有效)
+#     - max_iter: 最大迭代次数
+#     """
+#     set_weight(G)
+#
+#     communities = None  # 提前声明，避免作用域问题
+#
+#     for _ in range(max_iter):
+#         # 选择 partition 方法
+#         if method.upper() == "CPM":
+#             partition = la.find_partition(
+#                 G, la.CPMVertexPartition,
+#                 weights="weight",
+#                 resolution_parameter=gamma
+#             )
+#         elif method.upper() == "RB":
+#             partition = la.find_partition(
+#                 G, la.RBConfigurationVertexPartition,
+#                 weights="weight",
+#                 resolution_parameter=gamma
+#             )
+#         elif method.upper() == "MOD":
+#             partition = la.find_partition(
+#                 G, la.ModularityVertexPartition,
+#                 weights="weight"
+#             )
+#         else:
+#             raise ValueError(f"Unknown method {method}, must be one of RB/CPM/MOD")
+#
+#         # 解析社区
+#         communities = defaultdict(list)
+#         for node, cid in enumerate(partition.membership):
+#             communities[cid].append(G.vs[node]["name"])
+#
+#         # 判断是否满足阈值
+#         max_size = max(len(c) for c in communities.values())
+#         if max_size <= threshold:
+#             print_communities(communities)
+#             return communities
+#
+#         # 社区还太大 → 提高分辨率
+#         gamma *= 1.5
+#
+#     # 如果 max_iter 次仍不满足
+#     print("警告：达到最大迭代次数，仍有社区超过阈值")
+#     print_communities(communities)
+#     return communities
+
+
+
+def detect_communities_with_max(G, threshold=500, max_depth=2, min_size=2):
+    set_weight(G)
+
+    name_to_idx = {G.vs[i]["name"]: i for i in range(G.vcount())}
+
+    def _subgraph_by_names(names):
+        idxs = [name_to_idx[n] for n in names if n in name_to_idx]
+        return G.subgraph(idxs)
+
+    def _leiden_split(node_names, depth=0):
+        sub = _subgraph_by_names(node_names)
+        partition = la.find_partition(
+            sub, la.ModularityVertexPartition,
+            weights="weight",
+            n_iterations=-1
+        )
+
+        cid2names = defaultdict(list)
+        for v_idx, cid in enumerate(partition.membership):
+            cid2names[cid].append(sub.vs[v_idx]["name"])
+
+        refined_groups = []
+        for names in cid2names.values():
+            if len(names) > threshold and depth < max_depth:
+                refined_groups.extend(_leiden_split(names, depth + 1))
+            else:
+                refined_groups.append(names)
+        return refined_groups
+
+    # 顶层：运行并拿到所有子社区
+    all_names = G.vs["name"]
+    groups = _leiden_split(all_names, depth=0)
+
+    # 过滤掉只有 1 个节点的社区（或小于 min_size 的社区）
+    groups = [g for g in groups if len(g) >= min_size]
+
+    # 还原成连续编号
+    communities = {i: grp for i, grp in enumerate(groups)}
+
+    # 若都被过滤掉，避免打印时报错（可选）
+    if communities:
+        print_communities(communities)
+    else:
+        print("No communities (all groups smaller than min_size).")
+
     return communities
 
 def detect_communities_with_id(G):

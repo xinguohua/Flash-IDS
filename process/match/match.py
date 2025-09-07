@@ -316,7 +316,6 @@ def train_model(G, communities, node_embeddings, edge_embeddings):
                     config['training']['eval_after'] == 0):
                 model.eval()
                 with torch.no_grad():
-                    accumulated_pair_auc = []
                     accumulated_all_metrics = []
                     for batch in validation_set.pairs(config['evaluation']['batch_size'], G, node_embeddings, edge_embeddings):
                         node_features, edge_features, from_idx, to_idx, graph_idx, labels = get_graph(batch)
