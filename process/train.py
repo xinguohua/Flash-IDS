@@ -26,8 +26,8 @@ features, edges, mapp, relations, G  = data_handler.build_graph()
 
 # 大图分割
 print("===============start detect_communities=============")
-communities = detect_communities(G)
-# communities = detect_communities_with_max(G)
+# communities = detect_communities(G)
+communities = detect_communities_with_max(G)
 print("===============end detect_communities=============")
 # 嵌入构造特征向量
 embedder_class = get_embedder_by_name("word2vec")
