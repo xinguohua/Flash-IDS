@@ -10,7 +10,9 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 # 获取数据集
 # data_handler = get_handler("atlas", True)
-data_handler = get_handler("theia", True)
+# data_handler = get_handler("theia", True)
+# data_handler = get_handler("clearscope", True)
+data_handler = get_handler("trace", True)
 # data_handler = get_handler("cadets5", True)
 # data_handler = get_handler("optc", True)
 
@@ -24,8 +26,8 @@ features, edges, mapp, relations, G  = data_handler.build_graph()
 
 # 大图分割
 print("===============start detect_communities=============")
-# communities = detect_communities(G)
-communities = detect_communities_with_max(G)
+communities = detect_communities(G)
+# communities = detect_communities_with_max(G)
 print("===============end detect_communities=============")
 # 嵌入构造特征向量
 embedder_class = get_embedder_by_name("word2vec")

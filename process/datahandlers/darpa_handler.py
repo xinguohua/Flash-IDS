@@ -16,7 +16,9 @@ class DARPAHandler(BaseProcessor):
         label_map = collect_label_paths(self.base_path)
         for scene, category_data in json_map.items():
             # TODO: for test
-            if scene != "theia33":
+            # if scene != "theia33":
+            # if scene != "clearscope3.6":
+            if scene != "trace315":
                 continue
             if self.train == False:
                 label_file = open(label_map[scene])
@@ -106,14 +108,18 @@ class DARPAHandler(BaseProcessor):
                                              self.all_netobj2pro, self.all_subject2pro, self.all_file2pro)
             add_node_properties(nodes_props, actor_id, props_actor)
             if actor_id not in nodes_type:
-                nodes_type[actor_id] = _otype(getattr(r, "actor_type"))
+                # nodes_type[actor_id] = _otype(getattr(r, "actor_type"))
+                nodes_type[actor_id] = getattr(r, "actor_type")
+
 
             # object 节点
             props_obj = extract_properties(object_id, r, action,
                                            self.all_netobj2pro, self.all_subject2pro, self.all_file2pro)
             add_node_properties(nodes_props, object_id, props_obj)
             if object_id not in nodes_type:
-                nodes_type[object_id] = _otype(getattr(r, "object"))
+                # nodes_type[object_id] = _otype(getattr(r, "object"))
+                nodes_type[object_id] = getattr(r, "object")
+
 
             # 累加动作到 set
             edges_map.setdefault((actor_id, object_id), set()).add(action)
