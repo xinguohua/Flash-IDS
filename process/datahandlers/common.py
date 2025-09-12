@@ -60,9 +60,8 @@ def collect_label_paths(base_dir):
 # =================处理特征成图=========================
 def add_node_properties(nodes, node_id, properties):
     if node_id not in nodes:
-        nodes[node_id] = []
-    if properties not in nodes[node_id]:
-        nodes[node_id].append(properties)
+        nodes[node_id] = set()
+    nodes[node_id].add(properties)
 
 
 def get_or_add_node(G, node_id, node_type, properties):
